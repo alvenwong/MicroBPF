@@ -42,3 +42,7 @@ perf trace --no-syscalls --event 'net:*' wget www.google.com -O /dev/null
 net_dev_start_xmit <br>
 net_dev_xmit <br>
 net_dev_queue
+
+# Useful links
+http://www.brendangregg.com/perf.html#Tracepoints <br>
+https://blog.yadutaf.fr/2017/07/28/tracing-a-packet-journey-using-linux-tracepoints-perf-ebpf/
