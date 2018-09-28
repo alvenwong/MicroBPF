@@ -51,13 +51,9 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk,
         dport = sk->__sk_common.skc_dport;
         flow.dport = ntohs(dport);
         
-        // struct tcp_sock *tp = (struct tcp_sock *)sk;
-
-        // if (flow.sport == 5205 || flow.dport == 5205) {
         struct flow_info *finfo, zero = {};
         finfo = ipv4_flows.lookup_or_init(&flow, &zero);
         finfo->writeBytes += size;
-        // }
     }
     return 0;
 }
@@ -83,13 +79,9 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied)
         dport = sk->__sk_common.skc_dport;
         flow.dport = ntohs(dport);
         
-        // struct tcp_sock *tp = (struct tcp_sock *)sk;
-
-        // if (flow.sport == 5205 || flow.dport == 5205) {
         struct flow_info *finfo, zero = {};
         finfo = ipv4_flows.lookup_or_init(&flow, &zero);
         finfo->readBytes += copied;
-        // }
     }
     return 0;
 }
