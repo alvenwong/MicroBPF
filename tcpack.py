@@ -27,6 +27,28 @@ from struct import pack
 import ctypes as ct
 from time import sleep
 from bcc import tcp
+import argparse
+
+# arguments
+examples = """examples:
+    ./tcpack               # trace all ACKs
+    ./in_porbe -dp 5205    # only trace remote port 5205
+    ./in_porbe -sp 5205    # only trace local port 5205
+    ./in_porbe -s 5        # only trace one ACK in every 2^5 ACKs
+"""
+
+parser = argparse.ArgumentParser(
+    description="Trace the TCP metrics with ACKs",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    epilog=examples)
+parser.add_argument("-sp", "--sport", 
+    help="TCP source port")
+parser.add_argument("-dp", "--dport",
+    help="TCP destination port")
+parser.add_argument("-s", "--sample",
+    help="Trace sampling")
+
+args = parser.parse_args()
 
 # define BPF program
 bpf_text = """
@@ -54,7 +76,6 @@ BPF_HASH(flows_info, struct sock *, struct ipv4_flow_info);
 // only consider data structs for ipv4
 struct ipv4_data_t {
     u32 pid;
-    u64 ip;
     u32 saddr;
     u32 daddr;
     u16 sport;
@@ -94,10 +115,15 @@ int trace_tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb)
 {
     if (sk == NULL)
         return 0;
-    u32 pid = bpf_get_current_pid_tgid();
 
     // pull in details from the packet headers and the sock struct
     u16 family = sk->__sk_common.skc_family;
+    if (family != AF_INET)
+        return 0;
+
+    u32 pid = bpf_get_current_pid_tgid();
+    u64 time = bpf_ktime_get_ns();
+    SAMPLING
     char state = sk->__sk_common.skc_state;
     u32 ack_seq = 0, seq = 0, snd_cwnd = 0;
     u16 sport = 0, dport = 0;
@@ -110,39 +136,36 @@ int trace_tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb)
     sport = ntohs(sport);
     dport = ntohs(dport);
 
-    if (family == AF_INET && sport == 5205) {
-        struct ipv4_flow_info *finfo, zero = {};
-        finfo = flows_info.lookup_or_init(&sk, &zero);
-        struct ipv4_data_t data4 = {};
-        u32 srtt = 0;
-        data4.pid = pid;
-        data4.ip = 4;
-        data4.saddr = ip->saddr;
-        data4.daddr = ip->daddr;
-        data4.dport = dport;
-        data4.sport = sport;
-        data4.state = state;
-        data4.tcpflags = tcpflags;
-        data4.snd_cwnd = tp->snd_cwnd;
-        data4.rcv_wnd = tp->rcv_wnd;
-        data4.bytes_acked = tp->bytes_acked;
-        data4.bytes_received = tp->bytes_received;
-        data4.total_retrans = tp->total_retrans;
-        data4.fastRe = finfo->fastRe;
-        data4.timeout = finfo->timeout;
-        data4.srtt_counter += 1;
-        data4.srtt_sum += tp->srtt_us;
-        data4.packets_out = tp->packets_out;
-        data4.duration = bpf_ktime_get_ns() - finfo->init_time;
-        data4.bytes_inflight = tp->snd_nxt - tp->snd_una; 
-        // data4.bytes_inflight = bytes_inflight;
-        // if (finfo->max_bytes_inflight < bytes_inflight) {
-        //    finfo->max_bytes_inflight = bytes_inflight;
-        //}
-        ipv4_events.perf_submit(ctx, &data4, sizeof(data4));
+    FILTER_DPORT
+    FILTER_SPORT
 
-    }
-    // else drop
+    struct ipv4_flow_info *finfo, zero = {};
+    finfo = flows_info.lookup_or_init(&sk, &zero);
+    struct ipv4_data_t data4 = {};
+    u32 srtt = 0;
+    data4.pid = pid;
+    data4.saddr = ip->saddr;
+    data4.daddr = ip->daddr;
+    data4.dport = dport;
+    data4.sport = sport;
+    data4.state = state;
+    data4.tcpflags = tcpflags;
+    data4.snd_cwnd = tp->snd_cwnd;
+    data4.rcv_wnd = tp->rcv_wnd;
+    data4.bytes_acked = tp->bytes_acked;
+    data4.bytes_received = tp->bytes_received;
+    data4.total_retrans = tp->total_retrans;
+    data4.fastRe = finfo->fastRe;
+    data4.timeout = finfo->timeout;
+    data4.srtt_counter += 1;
+    data4.srtt_sum += tp->srtt_us;
+    data4.packets_out = tp->packets_out;
+    data4.duration = bpf_ktime_get_ns() - finfo->init_time;
+    data4.bytes_inflight = tp->snd_nxt - tp->snd_una; 
+    // if (finfo->max_bytes_inflight < bytes_inflight) {
+    //    finfo->max_bytes_inflight = bytes_inflight;
+
+    ipv4_events.perf_submit(ctx, &data4, sizeof(data4));
 
     return 0;
 }
@@ -185,12 +208,28 @@ int trace_tcp_enter_loss(struct pt_regs *ctx, struct sock *sk)
 }
 """
 
+# code substitutions
+if args.sport:
+    bpf_text = bpf_text.replace('FILTER_SPORT',
+        'if (sport != %s) { return 0; }' % args.sport)
+else:
+    bpf_text = bpf_text.replace('FILTER_SPORT', '')
+    
+if args.dport:
+    bpf_text = bpf_text.replace('FILTER_DPORT',
+        'if (dport != %s) { return 0; }' % args.dport)
+else:
+    bpf_text = bpf_text.replace('FILTER_DPORT', '')
+if args.sample:
+    bpf_text = bpf_text.replace('SAMPLING',
+        'if ((time << (64-%s) >> (64-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
+else:
+    bpf_text = bpf_text.replace('SAMPLING', '')
 
 # event data
 class Data_ipv4(ct.Structure):
     _fields_ = [
         ("pid", ct.c_uint),
-        ("ip", ct.c_ulonglong),
         ("saddr", ct.c_uint),
         ("daddr", ct.c_uint),
         ("sport", ct.c_ushort),
@@ -214,8 +253,8 @@ class Data_ipv4(ct.Structure):
 # process event
 def print_ipv4_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data_ipv4)).contents
-    print("%-8s %-6d %-2d %-18s > %-18s %-6s %-6s %-6s %-8s %-8s %-8s %-8s %-8s %-6s %-8s (%s)" % (
-        strftime("%H:%M:%S"), event.pid, event.ip,
+    print("%-8s %-4d %-20s > %-20s %-6s %-6s %-6s %-8s %-8s %-8s %-8s %-8s %-10s %-8s (%s)" % (
+        strftime("%H:%M:%S"), event.pid,
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
         "%d" % (event.total_retrans),
@@ -243,7 +282,7 @@ for i in range(len(functions_list)):
         exit()
 
 # header
-print("%-8s %-6s %-2s %-18s > %-18s %-6s %-6s %-6s %-8s %-8s %-8s %-8s %-8s %-6s %-8s (%s)" % ("TIME", "PID", "IP",
+print("%-8s %-4s %-20s > %-20s %-6s %-6s %-6s %-8s %-8s %-8s %-8s %-8s %-10s %-8s (%s)" % ("TIME", "PID",
     "SADDR:SPORT", "DADDR:DPORT", "retrans", "FastRe", "Timeout", "CWnd", "ACKed", "Rcvd", "Flight", "FBytes", "Duration", "STATE", "FLAGS"))
 
 # read events
