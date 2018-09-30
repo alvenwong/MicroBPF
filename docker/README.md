@@ -8,7 +8,7 @@ sudo docker build -t bcc-example .
 
 From your host shell:
 ```bash
-docker run -it --rm \
+sudo docker run -it --rm \
   --privileged \
   -v /lib/modules:/lib/modules:ro \
   -v /usr/src:/usr/src:ro \
@@ -22,4 +22,4 @@ For example;
 python in_probe.py
 ```
 
-For examples, please refer to the [bcc tutorial](https://github.com/iovisor/bcc/tree/master/docs/tutorial.md#1-general-performance).
+Please refer to the [bcc tutorial](https://github.com/iovisor/bcc/tree/master/docs/tutorial.md#1-general-performance).
