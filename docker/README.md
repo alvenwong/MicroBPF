@@ -1,5 +1,4 @@
-# bcc-docker
-[bcc-docker](https://hub.docker.com/r/zlim/bcc/) is provided for user to try out [bcc](https://github.com/iovisor/bcc).
+This is provided for users to try out [bcc](https://github.com/iovisor/bcc) and kernel trace tools in container.
 
 First, you need to run:
 ```bash
