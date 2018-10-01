@@ -23,13 +23,13 @@ events/: trace event categories, such as net and kprobes
 ## kprobes 
 ### cmd
 perf trace --no-syscalls --event 'kprobes:*' wget www.google.com -O /dev/null
-### event names for transmitting packets
+### event names for receiving packets
 eth_type_trans <br>
 ip_rcv <br>
 tcp_v4_rcv <br>
 skb_copy_datagram_iter
 
-### event names for receiving packets
+### event names for transmitting packets
 __tcp_transmit_skb <br>
 ip_queue_xmit <br>
 dev_queue_xmit <br>
