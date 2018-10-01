@@ -9,7 +9,7 @@ RUN set -ex; \
     libelf1 \
     libbcc-examples;
 
-COPY probes /
+COPY ../probes /
 COPY entrypoint.sh /
 RUN chmod +x /entrypoint.sh
 
