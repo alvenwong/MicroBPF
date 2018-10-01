@@ -40,6 +40,7 @@ bpf_text = """
 #include <linux/ip.h>
 #include <uapi/linux/tcp.h>
 #include <uapi/linux/ip.h>
+#include <uapi/linux/if_ether.h>
 #include <net/sock.h>
 #include <bcc/proto.h>
 #include <linux/skbuff.h>
@@ -94,8 +95,10 @@ static inline struct iphdr *skb_to_iphdr(const struct sk_buff *skb)
 
 int trace_eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb)
 {
+    const struct ethhdr* eth = (struct ethhdr*) skb->data;
+    u16 protocol = eth->h_proto;
     // Protocol is IP
-    if (skb->data[12] == 8 && skb->data[13] == 0) 
+    if (protocol == 8) 
     {
         u64 time = bpf_ktime_get_ns();
         SAMPLING
@@ -111,6 +114,7 @@ int trace_eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb)
         dport = tcp->dest;
         sport = ntohs(sport);
         dport = ntohs(dport);
+
         pkt_tuple.sport = sport;
         pkt_tuple.dport = dport;
 
