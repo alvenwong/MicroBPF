@@ -49,12 +49,19 @@ bpf_text = """
 #include <net/sch_generic.h>
 
 
-struct packet_tuple {
+struct flow_tuple {
     u32 saddr;
     u32 daddr;
     u16 sport;
     u16 dport;
+};
+
+
+struct packet_tuple {
+    u32 daddr;
+    u16 dport;
     u32 seq;
+    u32 ack;
 };
 
 
@@ -72,11 +79,15 @@ struct data_t {
     u64 tcp_time;
     u32 saddr;
     u32 daddr;
+    u32 nat_saddr;
+    u16 nat_sport;
     u16 sport;
     u16 dport;
     u32 seq;
+    u32 ack;
 };
 
+BPF_HASH(flows, struct packet_tuple, struct flow_tuple);
 BPF_HASH(out_timestamps, struct packet_tuple, struct ktime_info);
 BPF_PERF_OUTPUT(timestamp_events);
 
@@ -102,22 +113,23 @@ int trace_sch_direct_xmit(struct pt_regs *ctx, struct sk_buff *skb)
     struct tcphdr *tcp = skb_to_tcphdr(skb);
 
     struct packet_tuple pkt_tuple = {};
-    pkt_tuple.saddr = ip->saddr;
     pkt_tuple.daddr = ip->daddr;
-    u16 sport = 0, dport = 0;
-    u32 seq = 0, ack_seq = 0;
-    sport = tcp->source;
+    u16 dport = 0, sport = 0;
+    u32 seq = 0, ack = 0;
     dport = tcp->dest;
-    sport = ntohs(sport);
-    dport = ntohs(dport);
-    pkt_tuple.sport = sport;
-    pkt_tuple.dport = dport;
+    sport = tcp->source;
+    pkt_tuple.dport = ntohs(dport);
     seq = tcp->seq;
+    ack = tcp->ack_seq;
     pkt_tuple.seq = ntohl(seq);
+    pkt_tuple.ack = ntohl(ack);
 
     FILTER_DPORT
-    FILTER_SPORT
-    
+
+    struct flow_tuple *ftuple;
+    if((ftuple = flows.lookup(&pkt_tuple)) == NULL)
+        return 0;
+ 
     struct ktime_info *tinfo;
     if ((tinfo = out_timestamps.lookup(&pkt_tuple)) == NULL)
         return 0;
@@ -127,12 +139,16 @@ int trace_sch_direct_xmit(struct pt_regs *ctx, struct sk_buff *skb)
     data.qdisc_time = tinfo->qdisc_time - tinfo->mac_time;
     data.ip_time = tinfo->mac_time - tinfo->ip_time;
     data.tcp_time = tinfo->ip_time - tinfo->tcp_time;
-    data.saddr = pkt_tuple.saddr;
+    data.saddr = ftuple->saddr;
     data.daddr = pkt_tuple.daddr;
-    data.sport = pkt_tuple.sport;
+    data.nat_saddr = ip->saddr;
+    data.nat_sport = ntohs(sport);
+    data.sport = ftuple->sport;
     data.dport = pkt_tuple.dport;
     data.seq = pkt_tuple.seq;
+    data.ack = pkt_tuple.ack;
     
+    flows.delete(&pkt_tuple);
     out_timestamps.delete(&pkt_tuple);
     timestamp_events.perf_submit(ctx, &data, sizeof(data));
 
@@ -149,21 +165,17 @@ int trace_dev_queue_xmit(struct pt_regs *ctx, struct sk_buff *skb)
     struct tcphdr *tcp = skb_to_tcphdr(skb);
 
     struct packet_tuple pkt_tuple = {};
-    pkt_tuple.saddr = ip->saddr;
     pkt_tuple.daddr = ip->daddr;
-    u16 sport = 0, dport = 0;
-    u32 seq = 0, ack_seq = 0;
-    sport = tcp->source;
+    u16 dport = 0;
+    u32 seq = 0, ack = 0;
     dport = tcp->dest;
-    sport = ntohs(sport);
-    dport = ntohs(dport);
-    pkt_tuple.sport = sport;
-    pkt_tuple.dport = dport;
+    pkt_tuple.dport = ntohs(dport);
     seq = tcp->seq;
+    ack = tcp->ack_seq;
     pkt_tuple.seq = ntohl(seq);
+    pkt_tuple.ack = ntohl(ack);
 
     FILTER_DPORT
-    FILTER_SPORT
     
     struct ktime_info *tinfo;
     if ((tinfo = out_timestamps.lookup(&pkt_tuple)) == NULL)
@@ -183,18 +195,17 @@ int trace_ip_queue_xmit(struct pt_regs *ctx, struct sock *sk, struct sk_buff *sk
     if (family == AF_INET) {
         struct packet_tuple pkt_tuple = {};
         u16 dport = 0;
-        u32 seq = 0;
-        pkt_tuple.saddr = sk->__sk_common.skc_rcv_saddr;
+        u32 seq = 0, ack = 0;
         pkt_tuple.daddr = sk->__sk_common.skc_daddr;
-        pkt_tuple.sport = sk->__sk_common.skc_num;
         dport = sk->__sk_common.skc_dport;
         pkt_tuple.dport = ntohs(dport);
         struct tcphdr *tcp = skb_to_tcphdr(skb);
         seq = tcp->seq;
+        ack = tcp->ack_seq;
         pkt_tuple.seq = ntohl(seq);
+        pkt_tuple.ack = ntohl(ack);
 
         FILTER_DPORT
-        FILTER_SPORT
 
         struct ktime_info *tinfo;
         if ((tinfo = out_timestamps.lookup(&pkt_tuple)) == NULL)
@@ -205,7 +216,7 @@ int trace_ip_queue_xmit(struct pt_regs *ctx, struct sock *sk, struct sk_buff *sk
     return 0;
 }
 
-int trace___tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb)
+int trace___tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb, int clone_it, gfp_t gfp_mask, u32 rcv_nxt)
 {
     if (skb == NULL)
         return 0;
@@ -215,21 +226,28 @@ int trace___tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buf
 
     u16 family = sk->__sk_common.skc_family;
     if (family == AF_INET) {
+        struct flow_tuple ftuple = {};
         struct packet_tuple pkt_tuple = {};
         struct tcp_skb_cb *tcb;
         u16 dport = 0;
-        pkt_tuple.saddr = sk->__sk_common.skc_rcv_saddr;
+        ftuple.saddr = sk->__sk_common.skc_rcv_saddr;
+        ftuple.daddr = sk->__sk_common.skc_daddr;
+        ftuple.sport = sk->__sk_common.skc_num;
+
         pkt_tuple.daddr = sk->__sk_common.skc_daddr;
-        pkt_tuple.sport = sk->__sk_common.skc_num;
         dport = sk->__sk_common.skc_dport;
         pkt_tuple.dport = ntohs(dport);
+        ftuple.dport = pkt_tuple.dport;
         tcb = TCP_SKB_CB(skb);
         pkt_tuple.seq = tcb->seq; 
+        pkt_tuple.ack = rcv_nxt;
 
         FILTER_DPORT
         FILTER_SPORT
 
+        flows.lookup_or_init(&pkt_tuple, &ftuple);
         struct ktime_info *tinfo, zero = {};
+
         if ((tinfo = out_timestamps.lookup_or_init(&pkt_tuple, &zero)) == NULL)
             return 0;
 
@@ -244,7 +262,7 @@ int trace___tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buf
 # code substitutions
 if args.sport:
     bpf_text = bpf_text.replace('FILTER_SPORT',
-        'if (pkt_tuple.sport != %s) { return 0; }' % args.sport)
+        'if (ftuple.sport != %s) { return 0; }' % args.sport)
 else:
     bpf_text = bpf_text.replace('FILTER_SPORT', '')
     
@@ -267,18 +285,23 @@ class Data_t(ct.Structure):
         ("tcp_time", ct.c_ulonglong),
         ("saddr", ct.c_uint),
         ("daddr", ct.c_uint),
+        ("nat_saddr", ct.c_uint),
+        ("nat_sport", ct.c_ushort),
         ("sport", ct.c_ushort),
         ("dport", ct.c_ushort),
         ("seq", ct.c_uint),
+        ("ack", ct.c_uint),
     ]
 
 # process event
 def print_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data_t)).contents
-    print("%-20s > %-20s %-12s %-10s %-10s %-10s %-10s" % (
+    print("%-20s -> %-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s" % (
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
+        "%s:%d" % (inet_ntop(AF_INET, pack('I', event.nat_saddr)), event.nat_sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
         "%d" % (event.seq),
+        "%d" % (event.ack),
         "%d" % (event.total_time/1000),
         "%d" % (event.qdisc_time/1000),
         "%d" % (event.ip_time/1000),
@@ -309,7 +332,7 @@ for i in range(len(kretprobe_functions_list)):
         exit()
 
 # header
-print("%-20s > %-20s %-12s %-10s %-10s %-10s %-10s" % ("SADDR:SPORT", "DADDR:DPORT", "SEQ NUM", "TOTAL", "QDisc", "IP", "TCP"))
+print("%-20s -> %-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s" % ("SADDR:SPORT", "NAT:PORT", "DADDR:DPORT", "SEQ", "ACK", "TOTAL", "QDisc", "IP", "TCP"))
 
 # read events
 b["timestamp_events"].open_perf_buffer(print_event)
