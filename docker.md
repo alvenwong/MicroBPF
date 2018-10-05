@@ -28,9 +28,7 @@ sudo docker run -it --rm \
 Now, from the container shell, you can try the [kernel-trace](https://github.com/alvenwong/kernel_trace) tools in probes/.
 For example;
 ```bash
-python in_probe.py
+python in_probe.py -h
 ```
-
-
 
 Please refer to the [bcc tutorial](https://github.com/iovisor/bcc/tree/master/docs/tutorial.md#1-general-performance).
