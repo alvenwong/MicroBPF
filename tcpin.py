@@ -16,7 +16,7 @@ examples = """examples:
     ./in_probe             # trace all TCP packets
     ./in_porbe -dp 5205    # only trace remote port 5205
     ./in_porbe -sp 5205    # only trace local port 5205
-    ./in_porbe -s  100     # only trace one packet in every 100 packets
+    ./in_porbe -s  5     # only trace one packet in every 2^5 packets
 """
 
 parser = argparse.ArgumentParser(
@@ -75,6 +75,7 @@ struct data_t {
     u16 sport;
     u16 dport;
     u32 seq;
+    u32 ack;
 };
 
 BPF_HASH(in_timestamps, struct packet_tuple, struct ktime_info);
@@ -212,7 +213,7 @@ int trace_skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb)
     pkt_tuple.saddr = ip->saddr;
     pkt_tuple.daddr = ip->daddr;
     u16 sport = 0, dport = 0;
-    u32 seq = 0; 
+    u32 seq = 0, ack = 0; 
     sport = tcp->source;
     dport = tcp->dest;
     sport = ntohs(sport);
@@ -224,7 +225,9 @@ int trace_skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb)
     FILTER_SPORT
 
     seq = tcp->seq;
+    ack = tcp->ack_seq;
     pkt_tuple.seq = ntohl(seq);
+    ack = ntohl(ack);
     
     struct ktime_info *tinfo;
     if ((tinfo = in_timestamps.lookup(&pkt_tuple)) == NULL)
@@ -239,7 +242,8 @@ int trace_skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb)
     data.daddr = pkt_tuple.daddr;
     data.sport = pkt_tuple.sport;
     data.dport = pkt_tuple.dport;
-    data.seq= pkt_tuple.seq;
+    data.seq = pkt_tuple.seq;
+    data.ack = ack;
     
     in_timestamps.delete(&pkt_tuple);
     timestamp_events.perf_submit(ctx, &data, sizeof(data));
@@ -278,15 +282,17 @@ class Data_t(ct.Structure):
         ("sport", ct.c_ushort),
         ("dport", ct.c_ushort),
         ("seq", ct.c_uint),
+        ("ack", ct.c_uint),
     ]
 
 # process event
 def print_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data_t)).contents
-    print("%-20s > %-20s %-12s %-10s %-10s %-10s %-10s" % (
+    print("%-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s" % (
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
         "%d" % (event.seq),
+        "%d" % (event.ack),
         "%d" % (event.total_time/1000),
         "%d" % (event.mac_time/1000),
         "%d" % (event.ip_time/1000),
@@ -317,7 +323,7 @@ for i in range(len(kretprobe_functions_list)):
         exit()
 
 # header
-print("%-20s > %-20s %-12s %-10s %-10s %-10s %-10s" % ("SADDR:SPORT", "DADDR:DPORT", "SEQ NUM", "TOTAL", "MAC", "IP", "TCP"))
+print("%-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s" % ("SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TOTAL", "MAC", "IP", "TCP"))
 
 # read events
 b["timestamp_events"].open_perf_buffer(print_event)
