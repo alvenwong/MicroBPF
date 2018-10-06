@@ -25,8 +25,8 @@ sudo docker run -it --rm \
   dockerwangzhuang/bcc:kernel_trace
 ```
 
-Now, from the container shell, you can try the [kernel-trace](https://github.com/alvenwong/kernel_trace) tools in probes/.
-For example;
+Now, from the container shell, you can try the [kernel-trace](https://github.com/alvenwong/kernel_trace) tools.
+For example:
 ```bash
 python in_probe.py -h
 ```
