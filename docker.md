@@ -26,6 +26,10 @@ sudo docker run -it --rm \
   -v /usr/local:/usr/local:consistent \
   dockerwangzhuang/bcc
 ```
+Or
+```bash
+sh docker_run.sh
+```
 
 Now, from the container shell, you can try the [kernel-trace](https://github.com/alvenwong/kernel_trace) tools.
 For example:
