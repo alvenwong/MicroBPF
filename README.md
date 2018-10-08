@@ -100,8 +100,14 @@ Most of the following flow-level statistics are collected from SNAP (NSDI'11) an
 # Packet-level statistics
 This part of statistics is the breakdown of end-to-end delay, including latencies in TCP layer, IP layer and the latency from IP layer to dirver.
 
+# Kernel functions
+Refer to [perf.md](https://github.com/alvenwong/kernel_trace/blob/master/perf.md)
+
 # Files
 in_probe.py: trace the received packets in the kernel. <p>
 out_probe.py: trace the transmitted packets in the kernel. <p>
 tcpack.py: trace flow-level metrics triggered by ACKs. <p>
 tcpsock: probe ReadByte and WriteByte <p>
+  
+# Container
+Refer to [docker.md](https://github.com/alvenwong/kernel_trace/blob/master/docker.md)

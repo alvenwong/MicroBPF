@@ -15,10 +15,20 @@ sudo docker run -it --rm \
   bcc-example
 ```
 
-Now, from the container shell, you can try the [kernel-trace](https://github.com/alvenwong/kernel_trace) tools in probes/.
-For example;
+You can also directly run the following command to run the container without build:
 ```bash
-python in_probe.py
+sudo docker run -it --rm \
+  --privileged \
+  -v /lib/modules:/lib/modules:ro \
+  -v /usr/src:/usr/src:ro \
+  -v /etc/localtime:/etc/localtime:ro \
+  dockerwangzhuang/bcc:kernel_trace
+```
+
+Now, from the container shell, you can try the [kernel-trace](https://github.com/alvenwong/kernel_trace) tools.
+For example:
+```bash
+python in_probe.py -h
 ```
 
 Please refer to the [bcc tutorial](https://github.com/iovisor/bcc/tree/master/docs/tutorial.md#1-general-performance).
