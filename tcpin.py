@@ -7,22 +7,25 @@ from socket import inet_ntop, AF_INET, AF_INET6
 from struct import pack
 import ctypes as ct
 from bcc import tcp
-import os
-import signal
+from os import kill, getpid
+from signal import SIGKILL
 import argparse
 
 # arguments
 examples = """examples:
     ./in_probe             # trace all TCP packets
+    ./in_porbe -p  5205    # only trace port 5205
     ./in_porbe -dp 5205    # only trace remote port 5205
     ./in_porbe -sp 5205    # only trace local port 5205
-    ./in_porbe -s  5     # only trace one packet in every 2^5 packets
+    ./in_porbe -s  5       # only trace one packet in every 2^5 packets
 """
 
 parser = argparse.ArgumentParser(
-    description="Trace the duration in TCP, IP and mac layers",
+    description="Trace the duration in TCP, IP and MAC layers",
     formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog=examples)
+parser.add_argument("-p", "--port", 
+    help="TCP port")
 parser.add_argument("-sp", "--sport", 
     help="TCP source port")
 parser.add_argument("-dp", "--dport",
@@ -55,6 +58,7 @@ struct packet_tuple {
     u16 sport;
     u16 dport;
     u32 seq;
+    u32 ack;
 };
 
 
@@ -110,7 +114,7 @@ int trace_eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb)
         pkt_tuple.saddr = ip->saddr;
         pkt_tuple.daddr = ip->daddr;
         u16 sport = 0, dport = 0;
-        u32 seq = 0; 
+        u32 seq = 0, ack = 0; 
         sport = tcp->source;
         dport = tcp->dest;
         sport = ntohs(sport);
@@ -119,11 +123,14 @@ int trace_eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb)
         pkt_tuple.sport = sport;
         pkt_tuple.dport = dport;
 
+        FILTER_PORT
         FILTER_DPORT
         FILTER_SPORT
 
         seq = tcp->seq;
+        ack = tcp->ack_seq;
         pkt_tuple.seq = ntohl(seq);
+        pkt_tuple.ack = ntohl(ack);
         
         struct ktime_info *tinfo, zero={}; 
         if ((tinfo = in_timestamps.lookup_or_init(&pkt_tuple, &zero)) == NULL)
@@ -147,7 +154,7 @@ int trace_ip_rcv(struct pt_regs *ctx, struct sk_buff *skb)
     pkt_tuple.saddr = ip->saddr;
     pkt_tuple.daddr = ip->daddr;
     u16 sport = 0, dport = 0;
-    u32 seq = 0; 
+    u32 seq = 0, ack = 0; 
     sport = tcp->source;
     dport = tcp->dest;
     sport = ntohs(sport);
@@ -155,11 +162,14 @@ int trace_ip_rcv(struct pt_regs *ctx, struct sk_buff *skb)
     pkt_tuple.sport = sport;
     pkt_tuple.dport = dport;
 
+    FILTER_PORT
     FILTER_DPORT
     FILTER_SPORT
 
     seq = tcp->seq;
+    ack = tcp->ack_seq;
     pkt_tuple.seq = ntohl(seq);
+    pkt_tuple.ack = ntohl(ack);
     
     struct ktime_info *tinfo;
     if ((tinfo = in_timestamps.lookup(&pkt_tuple)) == NULL)
@@ -180,7 +190,7 @@ int trace_tcp_v4_rcv(struct pt_regs *ctx, struct sk_buff *skb)
     pkt_tuple.saddr = ip->saddr;
     pkt_tuple.daddr = ip->daddr;
     u16 sport = 0, dport = 0;
-    u32 seq = 0; 
+    u32 seq = 0, ack = 0; 
     sport = tcp->source;
     dport = tcp->dest;
     sport = ntohs(sport);
@@ -188,11 +198,14 @@ int trace_tcp_v4_rcv(struct pt_regs *ctx, struct sk_buff *skb)
     pkt_tuple.sport = sport;
     pkt_tuple.dport = dport;
 
+    FILTER_PORT
     FILTER_DPORT
     FILTER_SPORT
 
     seq = tcp->seq;
+    ack = tcp->ack_seq;
     pkt_tuple.seq = ntohl(seq);
+    pkt_tuple.ack = ntohl(ack);
     
     struct ktime_info *tinfo;
     if ((tinfo = in_timestamps.lookup(&pkt_tuple)) == NULL)
@@ -221,13 +234,14 @@ int trace_skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb)
     pkt_tuple.sport = sport;
     pkt_tuple.dport = dport;
 
+    FILTER_PORT
     FILTER_DPORT
     FILTER_SPORT
 
     seq = tcp->seq;
     ack = tcp->ack_seq;
     pkt_tuple.seq = ntohl(seq);
-    ack = ntohl(ack);
+    pkt_tuple.ack = ntohl(ack);
     
     struct ktime_info *tinfo;
     if ((tinfo = in_timestamps.lookup(&pkt_tuple)) == NULL)
@@ -244,7 +258,7 @@ int trace_skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb)
     data.dport = pkt_tuple.dport;
     data.seq = pkt_tuple.seq;
     data.ack = ack;
-    
+  
     in_timestamps.delete(&pkt_tuple);
     timestamp_events.perf_submit(ctx, &data, sizeof(data));
 
@@ -254,6 +268,11 @@ int trace_skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb)
 """
 
 # code substitutions
+if args.port:
+    bpf_text = bpf_text.replace('FILTER_PORT',
+        'if (pkt_tuple.sport != %s && pkt_tuple.dport != %s) { return 0; }' % (args.port, args.port))
+else:
+    bpf_text = bpf_text.replace('FILTER_SPORT', '')
 if args.sport:
     bpf_text = bpf_text.replace('FILTER_SPORT',
         'if (pkt_tuple.sport != %s) { return 0; }' % args.sport)
@@ -331,4 +350,4 @@ while 1:
     try:
         b.perf_buffer_poll()
     except KeyboardInterrupt:
-        os.kill(os.getpid(), signal.SIGKILL)
+        kill(getpid(), SIGKILL)

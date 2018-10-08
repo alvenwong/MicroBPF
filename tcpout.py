@@ -14,15 +14,18 @@ import argparse
 # arguments
 examples = """examples:
     ./out_probe             # trace all TCP packets
+    ./out_porbe -p  5205    # only trace port 5205
     ./out_porbe -dp 5205    # only trace remote port 5205
     ./out_porbe -sp 5205    # only trace local port 5205
-    ./out_porbe -s  100     # only trace one packet in every 100 packets
+    ./out_porbe -s  5       # only trace one packet in every 5 packets
 """
 
 parser = argparse.ArgumentParser(
-    description="Trace the duration in TCP, IP and mac layers",
+    description="Trace the duration in TCP, IP and MAC layers",
     formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog=examples)
+parser.add_argument("-p", "--port", 
+    help="TCP port")
 parser.add_argument("-sp", "--sport", 
     help="TCP source port")
 parser.add_argument("-dp", "--dport",
@@ -156,6 +159,58 @@ int trace_sch_direct_xmit(struct pt_regs *ctx, struct sk_buff *skb)
 }
 
 
+int trace_dev_hard_start_xmit(struct pt_regs *ctx, struct sk_buff *skb)
+{
+    if (skb == NULL)
+        return 0;
+
+    struct iphdr *ip = skb_to_iphdr(skb);
+    struct tcphdr *tcp = skb_to_tcphdr(skb);
+
+    struct packet_tuple pkt_tuple = {};
+    pkt_tuple.daddr = ip->daddr;
+    u16 dport = 0, sport = 0;
+    u32 seq = 0, ack = 0;
+    dport = tcp->dest;
+    sport = tcp->source;
+    pkt_tuple.dport = ntohs(dport);
+    seq = tcp->seq;
+    ack = tcp->ack_seq;
+    pkt_tuple.seq = ntohl(seq);
+    pkt_tuple.ack = ntohl(ack);
+
+    FILTER_DPORT
+
+    struct flow_tuple *ftuple;
+    if((ftuple = flows.lookup(&pkt_tuple)) == NULL)
+        return 0;
+ 
+    struct ktime_info *tinfo;
+    if ((tinfo = out_timestamps.lookup(&pkt_tuple)) == NULL)
+        return 0;
+    tinfo->qdisc_time = bpf_ktime_get_ns();
+    struct data_t data = {};
+    data.total_time = tinfo->qdisc_time - tinfo->tcp_time;
+    data.qdisc_time = tinfo->qdisc_time - tinfo->mac_time;
+    data.ip_time = tinfo->mac_time - tinfo->ip_time;
+    data.tcp_time = tinfo->ip_time - tinfo->tcp_time;
+    data.saddr = ftuple->saddr;
+    data.daddr = pkt_tuple.daddr;
+    data.nat_saddr = ip->saddr;
+    data.nat_sport = ntohs(sport);
+    data.sport = ftuple->sport;
+    data.dport = pkt_tuple.dport;
+    data.seq = pkt_tuple.seq;
+    data.ack = pkt_tuple.ack;
+    
+    flows.delete(&pkt_tuple);
+    out_timestamps.delete(&pkt_tuple);
+    timestamp_events.perf_submit(ctx, &data, sizeof(data));
+
+    return 0;
+}
+
+
 int trace_dev_queue_xmit(struct pt_regs *ctx, struct sk_buff *skb)
 {
     if (skb == NULL)
@@ -166,9 +221,10 @@ int trace_dev_queue_xmit(struct pt_regs *ctx, struct sk_buff *skb)
 
     struct packet_tuple pkt_tuple = {};
     pkt_tuple.daddr = ip->daddr;
-    u16 dport = 0;
+    u16 dport = 0, sport = 0;
     u32 seq = 0, ack = 0;
     dport = tcp->dest;
+    sport = tcp->source;
     pkt_tuple.dport = ntohs(dport);
     seq = tcp->seq;
     ack = tcp->ack_seq;
@@ -242,6 +298,7 @@ int trace___tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buf
         pkt_tuple.seq = tcb->seq; 
         pkt_tuple.ack = rcv_nxt;
 
+        FILTER_PORT
         FILTER_DPORT
         FILTER_SPORT
 
@@ -260,6 +317,11 @@ int trace___tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buf
 """
 
 # code substitutions
+if args.port:
+    bpf_text = bpf_text.replace('FILTER_PORT',
+        'if (ftuple.sport != %s && ftuple.dport != %s) { return 0; }' % (args.port, args.port))
+else:
+    bpf_text = bpf_text.replace('FILTER_SPORT', '')
 if args.sport:
     bpf_text = bpf_text.replace('FILTER_SPORT',
         'if (ftuple.sport != %s) { return 0; }' % args.sport)
@@ -311,7 +373,7 @@ def print_event(cpu, data, size):
 # initialize BPF
 b = BPF(text=bpf_text)
 trace_prefix = "trace_"
-kprobe_functions_list = ["__tcp_transmit_skb", "ip_queue_xmit", "dev_queue_xmit", "sch_direct_xmit"]
+kprobe_functions_list = ["__tcp_transmit_skb", "ip_queue_xmit", "dev_queue_xmit", "dev_hard_start_xmit", "sch_direct_xmit"]
 kretprobe_functions_list = []
 for i in range(len(kprobe_functions_list)):
     function = kprobe_functions_list[i]

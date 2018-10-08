@@ -28,19 +28,24 @@ import ctypes as ct
 from time import sleep
 from bcc import tcp
 import argparse
+from os import kill, getpid
+from signal import SIGKILL
 
 # arguments
 examples = """examples:
-    ./tcpack               # trace all ACKs
-    ./in_porbe -dp 5205    # only trace remote port 5205
-    ./in_porbe -sp 5205    # only trace local port 5205
-    ./in_porbe -s 5        # only trace one ACK in every 2^5 ACKs
+    ./tcpack             # trace all ACKs
+    ./tcpack -p  5205    # only trace port 5205
+    ./tcpack -dp 5205    # only trace remote port 5205
+    ./tcpack -sp 5205    # only trace local port 5205
+    ./tcpack -s 5        # only trace one ACK in every 2^5 ACKs
 """
 
 parser = argparse.ArgumentParser(
     description="Trace the TCP metrics with ACKs",
     formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog=examples)
+parser.add_argument("-p", "--port", 
+    help="TCP port")
 parser.add_argument("-sp", "--sport", 
     help="TCP source port")
 parser.add_argument("-dp", "--dport",
@@ -89,6 +94,7 @@ struct ipv4_data_t {
     u32 timeout;
     u64 bytes_acked;
     u64 bytes_received;
+    u32 srtt;
     u64 srtt_sum;
     u32 srtt_counter;
     // flight size
@@ -157,6 +163,7 @@ int trace_tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb)
     data4.total_retrans = tp->total_retrans;
     data4.fastRe = finfo->fastRe;
     data4.timeout = finfo->timeout;
+    data4.srtt = tp->srtt_us;
     data4.srtt_counter += 1;
     data4.srtt_sum += tp->srtt_us;
     data4.packets_out = tp->packets_out;
@@ -209,6 +216,11 @@ int trace_tcp_enter_loss(struct pt_regs *ctx, struct sock *sk)
 """
 
 # code substitutions
+if args.port:
+    bpf_text = bpf_text.replace('FILTER_PORT',
+        'if (sport != %s && dport != %s) { return 0; }' % (args.port, args.port))
+else:
+    bpf_text = bpf_text.replace('FILTER_SPORT', '')
 if args.sport:
     bpf_text = bpf_text.replace('FILTER_SPORT',
         'if (sport != %s) { return 0; }' % args.sport)
@@ -243,6 +255,7 @@ class Data_ipv4(ct.Structure):
         ("timeout", ct.c_uint),
         ("bytes_acked", ct.c_ulonglong),
         ("bytes_received", ct.c_ulonglong),
+        ("srtt", ct.c_uint),
         ("srtt_sum", ct.c_ulonglong),
         ("srtt_counter", ct.c_uint),
         ("packets_out", ct.c_uint),
@@ -253,19 +266,13 @@ class Data_ipv4(ct.Structure):
 # process event
 def print_ipv4_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data_ipv4)).contents
-    print("%-8s %-4d %-20s > %-20s %-6s %-6s %-6s %-8s %-8s %-8s %-8s %-8s %-10s %-8s (%s)" % (
+    print("%-8s %-4d %-20s > %-20s %-8s %-8s %-8s %-8s (%s)" % (
         strftime("%H:%M:%S"), event.pid,
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
-        "%d" % (event.total_retrans),
-        "%d" % (event.fastRe),
-        "%d" % (event.timeout),
-        "%d" % (event.snd_cwnd),
+        "%d" % (event.srtt / 1000),
         "%d" % (event.bytes_acked >> 10),
         "%d" % (event.bytes_received >> 10),
-        "%d" % (event.packets_out),
-        "%d" % (event.bytes_inflight),
-        "%d" % (event.duration / (1000*1000)),
         tcp.tcpstate[event.state], tcp.flags2str(event.tcpflags)))
 
 # initialize BPF
@@ -282,8 +289,8 @@ for i in range(len(functions_list)):
         exit()
 
 # header
-print("%-8s %-4s %-20s > %-20s %-6s %-6s %-6s %-8s %-8s %-8s %-8s %-8s %-10s %-8s (%s)" % ("TIME", "PID",
-    "SADDR:SPORT", "DADDR:DPORT", "retrans", "FastRe", "Timeout", "CWnd", "ACKed", "Rcvd", "Flight", "FBytes", "Duration", "STATE", "FLAGS"))
+print("%-8s %-4s %-20s > %-20s %-8s %-8s %-8s %-8s (%s)" % ("TIME", "PID",
+    "SADDR:SPORT", "DADDR:DPORT", "RTT(ms)", "ACKED(KB)", "RECVD(KB)", "STATE", "FLAGS"))
 
 # read events
 b["ipv4_events"].open_perf_buffer(print_ipv4_event)
@@ -291,4 +298,4 @@ while 1:
     try:
         b.perf_buffer_poll()
     except KeyboardInterrupt:
-        exit()
+        kill(getpid(), SIGKILL)
