@@ -2,7 +2,7 @@ This is provided for users to try out [bcc](https://github.com/iovisor/bcc) and 
 
 First, you need to run:
 ```bash
-sudo docker build -t bcc-example .
+sudo docker build -t bcc .
 ```
 
 From your host shell:
@@ -12,17 +12,19 @@ sudo docker run -it --rm \
   -v /lib/modules:/lib/modules:ro \
   -v /usr/src:/usr/src:ro \
   -v /etc/localtime:/etc/localtime:ro \
-  bcc-example
+  -v /usr/local:/usr/local:consistent \
+  bcc
 ```
 
-You can also directly run the following command to run the container without build:
+You can also directly run the container without build using the following command:
 ```bash
 sudo docker run -it --rm \
   --privileged \
   -v /lib/modules:/lib/modules:ro \
   -v /usr/src:/usr/src:ro \
   -v /etc/localtime:/etc/localtime:ro \
-  dockerwangzhuang/bcc:kernel_trace
+  -v /usr/local:/usr/local:consistent \
+  dockerwangzhuang/bcc
 ```
 
 Now, from the container shell, you can try the [kernel-trace](https://github.com/alvenwong/kernel_trace) tools.
