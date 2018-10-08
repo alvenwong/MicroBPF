@@ -104,7 +104,7 @@ This part of statistics is the breakdown of end-to-end delay, including latencie
 in_probe.py: trace the received packets in the kernel. <br>
 out_probe.py: trace the transmitted packets in the kernel. <br>
 tcpack.py: trace flow-level metrics triggered by ACKs. <br>
-tcpsock: probe ReadByte and WriteByte <br>
+tcpsock.py: just an example to probe ReadByte and WriteByte. <br>
   
 # Kernel Functions Probe
 Refer to [perf.md](https://github.com/alvenwong/kernel_trace/blob/master/perf.md)
