@@ -1,6 +1,6 @@
 This is provided for users to try out [bcc](https://github.com/iovisor/bcc) and kernel trace tools in container.
 
-First, you need to run:
+First, you need to build the image:
 ```bash
 sudo docker build -t bcc .
 ```
@@ -36,5 +36,4 @@ For example:
 ```bash
 python in_probe.py -h
 ```
-
-Please refer to the [bcc tutorial](https://github.com/iovisor/bcc/tree/master/docs/tutorial.md#1-general-performance).
+If you run the tools with "-o", i.e., redirecting the TCP metrics into specific files instead of stdout, you can check these files in /usr/local/bcc/ in the host in which the container is runing. Without "-o", the metrics will display directly on the terminal.
