@@ -1,22 +1,4 @@
-#!/usr/bin/python
-# @lint-avoid-python-3-compatibility-imports
-#
-# tcpack   Trace TCP kernel-ACKed packets/segments.
-#           For Linux, uses BCC, eBPF. Embedded C.
-#
-# This provides information such as packet details, socket state, and kernel
-# stack trace for packets/segments that were dropped via tcp_ack().
-#
-# USAGE: tcpack [-c] [-h] [-l]
-#
-# This uses dynamic tracing of kernel functions, and will need to be updated
-# to match kernel changes.
-#
-# Copyright 2018 Netflix, Inc.
-# Licensed under the Apache License, Version 2.0 (the "License")
-#
-# 30-May-2018   Brendan Gregg   Created this.
-# 3-Sep-2018 Zhuang Wang    Modified from tcpdrop to tcpack
+#!/usr/bin/env python
 
 from __future__ import print_function
 from bcc import BPF
@@ -28,8 +10,10 @@ import ctypes as ct
 from time import sleep
 from bcc import tcp
 import argparse
+from subprocess import call
 from os import kill, getpid
 from signal import SIGKILL
+import sys
 
 # arguments
 examples = """examples:
@@ -38,6 +22,7 @@ examples = """examples:
     ./tcpack -dp 5205    # only trace remote port 5205
     ./tcpack -sp 5205    # only trace local port 5205
     ./tcpack -s 5        # only trace one ACK in every 2^5 ACKs
+    ./tcpack -o  [fname] # print the information into /usr/local/bcc/fname
 """
 
 parser = argparse.ArgumentParser(
@@ -52,6 +37,8 @@ parser.add_argument("-dp", "--dport",
     help="TCP destination port")
 parser.add_argument("-s", "--sample",
     help="Trace sampling")
+parser.add_argument("-o", "--output", nargs='?', const="tcpack",
+    help="Output file")
 
 args = parser.parse_args()
 
@@ -142,6 +129,7 @@ int trace_tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb)
     sport = ntohs(sport);
     dport = ntohs(dport);
 
+    FILTER_PORT
     FILTER_DPORT
     FILTER_SPORT
 
@@ -215,12 +203,23 @@ int trace_tcp_enter_loss(struct pt_regs *ctx, struct sock *sk)
 }
 """
 
+
+def checkValid(string):
+    # the first character should be letter
+    if not string[0].isalpha():
+        return False
+    for i in range(1, len(string)):
+        char = string[i]
+        if not char.isalpha() and not char.isdigit() and char != '-' and char != '_':
+            return False
+    return True
+
 # code substitutions
 if args.port:
     bpf_text = bpf_text.replace('FILTER_PORT',
         'if (sport != %s && dport != %s) { return 0; }' % (args.port, args.port))
 else:
-    bpf_text = bpf_text.replace('FILTER_SPORT', '')
+    bpf_text = bpf_text.replace('FILTER_PORT', '')
 if args.sport:
     bpf_text = bpf_text.replace('FILTER_SPORT',
         'if (sport != %s) { return 0; }' % args.sport)
@@ -237,6 +236,15 @@ if args.sample:
         'if ((time << (64-%s) >> (64-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
 else:
     bpf_text = bpf_text.replace('SAMPLING', '')
+if args.output:
+    if checkValid(args.output):
+        output_dir = "/usr/local/bcc/"
+        call(["mkdir", "-p", output_dir])
+        output_file = output_dir + args.output
+        sys.stdout = open(output_file, "w+")
+    else:
+        print("The output filename is invalid. Exit...")
+        exit()
 
 # event data
 class Data_ipv4(ct.Structure):

@@ -8,8 +8,10 @@ from struct import pack
 import ctypes as ct
 from bcc import tcp
 from os import kill, getpid
+from subprocess import call
 from signal import SIGKILL
 import argparse
+import sys
 
 # arguments
 examples = """examples:
@@ -18,6 +20,7 @@ examples = """examples:
     ./in_porbe -dp 5205    # only trace remote port 5205
     ./in_porbe -sp 5205    # only trace local port 5205
     ./in_porbe -s  5       # only trace one packet in every 2^5 packets
+    ./in_porbe -o  [fname] # print the information into /usr/local/bcc/fname
 """
 
 parser = argparse.ArgumentParser(
@@ -32,6 +35,8 @@ parser.add_argument("-dp", "--dport",
     help="TCP destination port")
 parser.add_argument("-s", "--sample",
     help="Trace sampling")
+parser.add_argument("-o", "--output", nargs='?', const="tcpin",
+    help="Output file")
 
 args = parser.parse_args()
 
@@ -267,12 +272,23 @@ int trace_skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb)
 
 """
 
+def checkValid(string):
+    # the first character should be letter
+    if not string[0].isalpha():
+        return False
+    for i in range(1, len(string)):
+        char = string[i]
+        if not char.isalpha() and not char.isdigit() and char != '-' and char != '_':
+            return False
+    return True
+    
+
 # code substitutions
 if args.port:
     bpf_text = bpf_text.replace('FILTER_PORT',
         'if (pkt_tuple.sport != %s && pkt_tuple.dport != %s) { return 0; }' % (args.port, args.port))
 else:
-    bpf_text = bpf_text.replace('FILTER_SPORT', '')
+    bpf_text = bpf_text.replace('FILTER_PORT', '')
 if args.sport:
     bpf_text = bpf_text.replace('FILTER_SPORT',
         'if (pkt_tuple.sport != %s) { return 0; }' % args.sport)
@@ -289,6 +305,16 @@ if args.sample:
         'if ((time << (64-%s) >> (64-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
 else:
     bpf_text = bpf_text.replace('SAMPLING', '')
+if args.output:
+    if checkValid(args.output):
+        output_dir = "/usr/local/bcc/"
+        call(["mkdir", "-p", output_dir])
+        output_file = output_dir + args.output
+        sys.stdout = open(output_file, "w+")
+    else:
+        print("The output filename is invalid. Exit...")
+        exit()
+ 
 
 class Data_t(ct.Structure):
     _fields_ = [
