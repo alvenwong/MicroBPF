@@ -31,9 +31,9 @@ Or
 sh docker_run.sh
 ```
 
-Now, from the container shell, you can try the [kernel-trace](https://github.com/alvenwong/kernel_trace) tools.
+Now, from the container shell, you can try the [MicroBPF](https://github.com/alvenwong/MicroBPF) tools.
 For example:
 ```bash
 python in_probe.py -h
 ```
-If you run the tools with "-o", i.e., redirecting the TCP metrics into specific files instead of stdout, you can check these files in /usr/local/bcc/ in the host in which the container is runing. Without "-o", the metrics will display directly on the terminal.
+If you run the python files with "-o", i.e., redirecting the TCP metrics into specific files instead of stdout, you can check these files in /usr/local/bcc/ in the host in which the container is runing. Without "-o", the metrics will display directly on the terminal.
