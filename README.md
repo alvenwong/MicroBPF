@@ -1,5 +1,5 @@
 # Introduce
-This project leverages eBPF (BCC) to capture TCP metrics from the kernel for performance diagnosis in microservices architectures. It probes two levels of statistics: flows and packets.  The flow-level statistics currently have sixteen metrics, such as flight size, CWnd, sampled RTT, number of fast retransmission and timeout. The packets-level statistics are the breakdown of the end-to-end delay, including latencies in TCP layer, IP layer and kernel space.
+This project leverages eBPF ([BCC](https://github.com/iovisor/bcc)) to capture TCP metrics from the kernel for performance diagnosis in microservices architectures. It probes two levels of statistics: flows and packets.  The flow-level statistics currently have sixteen metrics, such as flight size, CWnd, sampled RTT, number of fast retransmission and timeout. The packets-level statistics are the breakdown of the end-to-end delay, including latencies in TCP layer, IP layer and kernel space.
 
 # Flow-level Statistics
 Most of the following flow-level statistics are collected from [SNAP](https://www.microsoft.com/en-us/research/wp-content/uploads/2011/01/nsdi11_dcmeasurement.pdf) (NSDI'11) and [NetPoiror](http://netdb.cis.upenn.edu/papers/netpoirot.pdf) (SIGCOMM'16). <p>
