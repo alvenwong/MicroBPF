@@ -2,7 +2,7 @@
 This project leverages eBPF (BCC) to capture TCP metrics from the kernel for performance diagnosis in microservices architectures. It probes two levels of statistics: flows and packets.  The flow-level statistics currently have sixteen metrics, such as flight size, CWnd, sampled RTT, number of fast retransmission and timeout. The packets-level statistics are the breakdown of the end-to-end delay, including latencies in TCP layer, IP layer and kernel space.
 
 # Flow-level Statistics
-Most of the following flow-level statistics are collected from SNAP (NSDI'11) and NetPoiror (SIGCOMM'16). <p>
+Most of the following flow-level statistics are collected from [SNAP](https://www.microsoft.com/en-us/research/wp-content/uploads/2011/01/nsdi11_dcmeasurement.pdf) (NSDI'11) and [NetPoiror](http://netdb.cis.upenn.edu/papers/netpoirot.pdf) (SIGCOMM'16). <p>
 <table>
   <tr>
     <th>Index</th>
@@ -101,10 +101,10 @@ Most of the following flow-level statistics are collected from SNAP (NSDI'11) an
 This part of statistics is the breakdown of end-to-end delay, including latencies in TCP layer, IP layer and the latency from IP layer to dirver.
 
 # BCC files
-in_probe.py: trace the received packets in the kernel. <p>
-out_probe.py: trace the transmitted packets in the kernel. <p>
-tcpack.py: trace flow-level metrics triggered by ACKs. <p>
-tcpsock: probe ReadByte and WriteByte <p>
+in_probe.py: trace the received packets in the kernel. <br>
+out_probe.py: trace the transmitted packets in the kernel. <br>
+tcpack.py: trace flow-level metrics triggered by ACKs. <br>
+tcpsock: probe ReadByte and WriteByte <br>
   
 # Kernel Functions Probe
 Refer to [perf.md](https://github.com/alvenwong/kernel_trace/blob/master/perf.md)
@@ -113,4 +113,4 @@ Refer to [perf.md](https://github.com/alvenwong/kernel_trace/blob/master/perf.md
 Refer to [docker.md](https://github.com/alvenwong/kernel_trace/blob/master/docker.md)
 
 # Test Examples
-Refer to [test.md]
+Refer to [test_example.md](https://github.com/alvenwong/kernel_trace/blob/master/test_exampe.md)
