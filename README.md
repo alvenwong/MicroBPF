@@ -108,7 +108,10 @@ tcpsock.py: just an example to probe ReadByte and WriteByte. <br>
   
 # Kernel Functions Probe
 Refer to [perf.md](https://github.com/alvenwong/kernel_trace/blob/master/perf.md)
-  
+
+# How to run 
+Refer to [docker.md](https://github.com/alvenwong/kernel_trace/blob/master/docker.md)
+
 # Container
 Refer to [docker.md](https://github.com/alvenwong/kernel_trace/blob/master/docker.md)
 
