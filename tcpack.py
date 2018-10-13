@@ -14,7 +14,7 @@ from subprocess import call
 from os import kill, getpid
 from signal import SIGKILL
 import sys
-from tools import check_filename, valid_function_name
+from tcptools import check_filename, valid_function_name
 
 # arguments
 examples = """examples:
@@ -291,7 +291,7 @@ for i in range(len(functions_list)):
 
 # header
 print("%-8s %-4s %-20s > %-20s %-8s %-8s %-8s %-12s (%s)" % ("TIME", "PID",
-    "SADDR:SPORT", "DADDR:DPORT", "RTT(ms)", "CWnd", "PKTOUT", "STATE", "FLAGS"))
+    "SADDR:SPORT", "DADDR:DPORT", "RTT(us)", "CWnd", "PKTOUT", "STATE", "FLAGS"))
 
 # read events
 b["ipv4_events"].open_perf_buffer(print_ipv4_event)

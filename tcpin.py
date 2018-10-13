@@ -12,7 +12,7 @@ from subprocess import call
 from signal import SIGKILL
 import argparse
 import sys
-from tools import check_filename, valid_function_name
+from tcptools import check_filename, valid_function_name
 
 # arguments
 examples = """examples:
