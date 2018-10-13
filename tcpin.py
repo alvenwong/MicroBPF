@@ -12,6 +12,7 @@ from subprocess import call
 from signal import SIGKILL
 import argparse
 import sys
+from tools import check_filename, valid_function_name
 
 # arguments
 examples = """examples:
@@ -272,17 +273,6 @@ int trace_skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb)
 
 """
 
-def checkValid(string):
-    # the first character should be letter
-    if not string[0].isalpha():
-        return False
-    for i in range(1, len(string)):
-        char = string[i]
-        if not char.isalpha() and not char.isdigit() and char != '-' and char != '_':
-            return False
-    return True
-    
-
 # code substitutions
 if args.port:
     bpf_text = bpf_text.replace('FILTER_PORT',
@@ -306,7 +296,7 @@ if args.sample:
 else:
     bpf_text = bpf_text.replace('SAMPLING', '')
 if args.output:
-    if checkValid(args.output):
+    if check_filename(args.output):
         output_dir = "/usr/local/bcc/"
         call(["mkdir", "-p", output_dir])
         output_file = output_dir + args.output
@@ -352,6 +342,9 @@ kretprobe_functions_list = []
 for i in range(len(kprobe_functions_list)):
     function = kprobe_functions_list[i]
     trace_function = trace_prefix + function
+    function = valid_function_name(function)
+    if function == None:
+        exit()
     if b.get_kprobe_functions(function):
         b.attach_kprobe(event=function, fn_name=trace_function)
     else:
@@ -361,6 +354,9 @@ for i in range(len(kprobe_functions_list)):
 for i in range(len(kretprobe_functions_list)):
     function = kretprobe_functions_list[i]
     trace_function = trace_prefix + function
+    function = valid_function_name(function)
+    if function == None:
+        exit()
     if b.get_kprobe_functions(function):
         b.attach_kretprobe(event=function, fn_name=trace_function)
     else:

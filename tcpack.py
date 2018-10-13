@@ -14,6 +14,7 @@ from subprocess import call
 from os import kill, getpid
 from signal import SIGKILL
 import sys
+from tools import check_filename, valid_function_name
 
 # arguments
 examples = """examples:
@@ -203,17 +204,6 @@ int trace_tcp_enter_loss(struct pt_regs *ctx, struct sock *sk)
 }
 """
 
-
-def checkValid(string):
-    # the first character should be letter
-    if not string[0].isalpha():
-        return False
-    for i in range(1, len(string)):
-        char = string[i]
-        if not char.isalpha() and not char.isdigit() and char != '-' and char != '_':
-            return False
-    return True
-
 # code substitutions
 if args.port:
     bpf_text = bpf_text.replace('FILTER_PORT',
@@ -237,7 +227,7 @@ if args.sample:
 else:
     bpf_text = bpf_text.replace('SAMPLING', '')
 if args.output:
-    if checkValid(args.output):
+    if check_filename(args.output):
         output_dir = "/usr/local/bcc/"
         call(["mkdir", "-p", output_dir])
         output_file = output_dir + args.output
@@ -274,13 +264,13 @@ class Data_ipv4(ct.Structure):
 # process event
 def print_ipv4_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data_ipv4)).contents
-    print("%-8s %-4d %-20s > %-20s %-8s %-8s %-8s %-8s (%s)" % (
+    print("%-8s %-4d %-20s > %-20s %-8s %-8s %-8s %-12s (%s)" % (
         strftime("%H:%M:%S"), event.pid,
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
         "%d" % (event.srtt / 1000),
-        "%d" % (event.bytes_acked >> 10),
-        "%d" % (event.bytes_received >> 10),
+        "%d" % (event.snd_cwnd),
+        "%d" % (event.packets_out),
         tcp.tcpstate[event.state], tcp.flags2str(event.tcpflags)))
 
 # initialize BPF
@@ -290,6 +280,9 @@ functions_list = ["tcp_ack", "tcp_set_state", "tcp_enter_recovery", "tcp_enter_l
 for i in range(len(functions_list)):
     function = functions_list[i]
     trace_function = trace_prefix + function
+    function = valid_function_name(function)
+    if function == None:
+        exit()
     if b.get_kprobe_functions(function):
         b.attach_kprobe(event=function, fn_name=trace_function)
     else:
@@ -297,8 +290,8 @@ for i in range(len(functions_list)):
         exit()
 
 # header
-print("%-8s %-4s %-20s > %-20s %-8s %-8s %-8s %-8s (%s)" % ("TIME", "PID",
-    "SADDR:SPORT", "DADDR:DPORT", "RTT(ms)", "ACKED(KB)", "RECVD(KB)", "STATE", "FLAGS"))
+print("%-8s %-4s %-20s > %-20s %-8s %-8s %-8s %-12s (%s)" % ("TIME", "PID",
+    "SADDR:SPORT", "DADDR:DPORT", "RTT(ms)", "CWnd", "PKTOUT", "STATE", "FLAGS"))
 
 # read events
 b["ipv4_events"].open_perf_buffer(print_ipv4_event)

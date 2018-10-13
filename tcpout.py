@@ -12,6 +12,7 @@ from subprocess import call
 from signal import SIGKILL
 import argparse
 import sys
+from tools import check_filename, valid_function_name
 
 
 # arguments
@@ -278,7 +279,7 @@ int trace_ip_queue_xmit(struct pt_regs *ctx, struct sock *sk, struct sk_buff *sk
     return 0;
 }
 
-int trace___tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb, int clone_it, gfp_t gfp_mask, u32 rcv_nxt)
+int trace_tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb, int clone_it, gfp_t gfp_mask, u32 rcv_nxt)
 {
     if (skb == NULL)
         return 0;
@@ -322,16 +323,6 @@ int trace___tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buf
 
 """
 
-def checkValid(string):
-    # the first character should be letter
-    if not string[0].isalpha():
-        return False
-    for i in range(1, len(string)):
-        char = string[i]
-        if not char.isalpha() and not char.isdigit() and char != '-' and char != '_':
-            return False
-    return True
-    
 # code substitutions
 if args.port:
     bpf_text = bpf_text.replace('FILTER_PORT',
@@ -355,7 +346,7 @@ if args.sample:
 else:
     bpf_text = bpf_text.replace('SAMPLING', '')
 if args.output:
-    if checkValid(args.output):
+    if check_filename(args.output):
         output_dir = "/usr/local/bcc/"
         call(["mkdir", "-p", output_dir])
         output_file = output_dir + args.output
@@ -399,11 +390,14 @@ def print_event(cpu, data, size):
 # initialize BPF
 b = BPF(text=bpf_text)
 trace_prefix = "trace_"
-kprobe_functions_list = ["__tcp_transmit_skb", "ip_queue_xmit", "dev_queue_xmit", "dev_hard_start_xmit", "sch_direct_xmit"]
+kprobe_functions_list = ["tcp_transmit_skb", "ip_queue_xmit", "dev_queue_xmit", "dev_hard_start_xmit", "sch_direct_xmit"]
 kretprobe_functions_list = []
 for i in range(len(kprobe_functions_list)):
     function = kprobe_functions_list[i]
     trace_function = trace_prefix + function
+    function = valid_function_name(function)
+    if function == None:
+        exit()
     if b.get_kprobe_functions(function):
         b.attach_kprobe(event=function, fn_name=trace_function)
     else:
@@ -413,6 +407,9 @@ for i in range(len(kprobe_functions_list)):
 for i in range(len(kretprobe_functions_list)):
     function = kretprobe_functions_list[i]
     trace_function = trace_prefix + function
+    function = valid_function_name(function)
+    if function == None:
+        exit()
     if b.get_kprobe_functions(function):
         b.attach_kretprobe(event=function, fn_name=trace_function)
     else:
