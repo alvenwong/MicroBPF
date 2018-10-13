@@ -1,8 +1,8 @@
 # Introduce
-This project leverages eBPF (BCC) to capture TCP metrics from the kernel for performance diagnosis in microservices architectures. It probes two levels of statistics: flows and packets.  The flow-level statistics currently have sixteen metrics, such as flight size, CWnd, sampled RTT, number of fast retransmission and timeout. The packets-level statistics are the breakdown of the end-to-end delay, including latencies in TCP layer, IP layer and kernel space.
+This project leverages eBPF ([BCC](https://github.com/iovisor/bcc)) to capture TCP metrics from the kernel for performance diagnosis in microservices architectures. It probes two levels of statistics: flows and packets.  The flow-level statistics currently have sixteen metrics, such as flight size, CWnd, sampled RTT, number of fast retransmission and timeout. The packets-level statistics are the breakdown of the end-to-end delay, including latencies in TCP layer, IP layer and kernel space.
 
-# Flow-level statistics
-Most of the following flow-level statistics are collected from SNAP (NSDI'11) and NetPoiror (SIGCOMM'16). <p>
+# Flow-level Statistics
+Most of the following flow-level statistics are collected from [SNAP](https://www.microsoft.com/en-us/research/wp-content/uploads/2011/01/nsdi11_dcmeasurement.pdf) (NSDI'11) and [NetPoiror](http://netdb.cis.upenn.edu/papers/netpoirot.pdf) (SIGCOMM'16). <p>
 <table>
   <tr>
     <th>Index</th>
@@ -97,17 +97,23 @@ Most of the following flow-level statistics are collected from SNAP (NSDI'11) an
 </table>
 
 
-# Packet-level statistics
+# Packet-level Statistics
 This part of statistics is the breakdown of end-to-end delay, including latencies in TCP layer, IP layer and the latency from IP layer to dirver.
 
-# Kernel functions
+# BCC files
+in_probe.py: trace the received packets in the kernel. <br>
+out_probe.py: trace the transmitted packets in the kernel. <br>
+tcpack.py: trace flow-level metrics triggered by ACKs. <br>
+tcpsock.py: just an example to probe ReadByte and WriteByte. <br>
+  
+# Kernel Functions Probe
 Refer to [perf.md](https://github.com/alvenwong/kernel_trace/blob/master/perf.md)
 
-# Files
-in_probe.py: trace the received packets in the kernel. <p>
-out_probe.py: trace the transmitted packets in the kernel. <p>
-tcpack.py: trace flow-level metrics triggered by ACKs. <p>
-tcpsock: probe ReadByte and WriteByte <p>
-  
+# How to run 
+Refer to [docker.md](https://github.com/alvenwong/kernel_trace/blob/master/docker.md)
+
 # Container
 Refer to [docker.md](https://github.com/alvenwong/kernel_trace/blob/master/docker.md)
+
+# Test Examples
+Refer to [test_example.md](https://github.com/alvenwong/kernel_trace/blob/master/test_exampe.md)
