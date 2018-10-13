@@ -103,6 +103,23 @@ static inline struct iphdr *skb_to_iphdr(const struct sk_buff *skb)
     return (struct iphdr *)(skb->head + skb->network_header);
 }
 
+static void get_pkt_tuple(struct packet_tuple *pkt_tuple, struct iphdr *ip, struct tcphdr *tcp)
+{
+    u16 sport = 0, dport = 0;
+    u32 seq = 0, ack = 0; 
+
+    pkt_tuple->saddr = ip->saddr;
+    pkt_tuple->daddr = ip->daddr;
+    sport = tcp->source;
+    dport = tcp->dest;
+    pkt_tuple->sport = ntohs(sport);
+    pkt_tuple->dport = ntohs(dport);
+    seq = tcp->seq;
+    ack = tcp->ack_seq;
+    pkt_tuple->seq = ntohl(seq);
+    pkt_tuple->ack = ntohl(ack);
+} 
+
 
 int trace_eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb)
 {
@@ -117,27 +134,12 @@ int trace_eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb)
         struct iphdr *ip = (struct iphdr *)(skb->data + 14);
         struct tcphdr *tcp = (struct tcphdr *)(skb->data + 34);
         struct packet_tuple pkt_tuple = {};
-        pkt_tuple.saddr = ip->saddr;
-        pkt_tuple.daddr = ip->daddr;
-        u16 sport = 0, dport = 0;
-        u32 seq = 0, ack = 0; 
-        sport = tcp->source;
-        dport = tcp->dest;
-        sport = ntohs(sport);
-        dport = ntohs(dport);
-
-        pkt_tuple.sport = sport;
-        pkt_tuple.dport = dport;
-
+        get_pkt_tuple(&pkt_tuple, ip, tcp);
+        
         FILTER_PORT
         FILTER_DPORT
         FILTER_SPORT
 
-        seq = tcp->seq;
-        ack = tcp->ack_seq;
-        pkt_tuple.seq = ntohl(seq);
-        pkt_tuple.ack = ntohl(ack);
-        
         struct ktime_info *tinfo, zero={}; 
         if ((tinfo = in_timestamps.lookup_or_init(&pkt_tuple, &zero)) == NULL)
             return 0;
@@ -155,28 +157,13 @@ int trace_ip_rcv(struct pt_regs *ctx, struct sk_buff *skb)
 
     struct iphdr *ip = skb_to_iphdr(skb);
     struct tcphdr *tcp = skb_to_tcphdr(skb);
-
     struct packet_tuple pkt_tuple = {};
-    pkt_tuple.saddr = ip->saddr;
-    pkt_tuple.daddr = ip->daddr;
-    u16 sport = 0, dport = 0;
-    u32 seq = 0, ack = 0; 
-    sport = tcp->source;
-    dport = tcp->dest;
-    sport = ntohs(sport);
-    dport = ntohs(dport);
-    pkt_tuple.sport = sport;
-    pkt_tuple.dport = dport;
+    get_pkt_tuple(&pkt_tuple, ip, tcp);
 
     FILTER_PORT
     FILTER_DPORT
     FILTER_SPORT
 
-    seq = tcp->seq;
-    ack = tcp->ack_seq;
-    pkt_tuple.seq = ntohl(seq);
-    pkt_tuple.ack = ntohl(ack);
-    
     struct ktime_info *tinfo;
     if ((tinfo = in_timestamps.lookup(&pkt_tuple)) == NULL)
         return 0;
@@ -193,26 +180,12 @@ int trace_tcp_v4_rcv(struct pt_regs *ctx, struct sk_buff *skb)
     struct iphdr *ip = skb_to_iphdr(skb);
     struct tcphdr *tcp = skb_to_tcphdr(skb);
     struct packet_tuple pkt_tuple = {};
-    pkt_tuple.saddr = ip->saddr;
-    pkt_tuple.daddr = ip->daddr;
-    u16 sport = 0, dport = 0;
-    u32 seq = 0, ack = 0; 
-    sport = tcp->source;
-    dport = tcp->dest;
-    sport = ntohs(sport);
-    dport = ntohs(dport);
-    pkt_tuple.sport = sport;
-    pkt_tuple.dport = dport;
+    get_pkt_tuple(&pkt_tuple, ip, tcp);
 
     FILTER_PORT
     FILTER_DPORT
     FILTER_SPORT
 
-    seq = tcp->seq;
-    ack = tcp->ack_seq;
-    pkt_tuple.seq = ntohl(seq);
-    pkt_tuple.ack = ntohl(ack);
-    
     struct ktime_info *tinfo;
     if ((tinfo = in_timestamps.lookup(&pkt_tuple)) == NULL)
         return 0;
@@ -229,25 +202,11 @@ int trace_skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb)
     struct iphdr *ip = skb_to_iphdr(skb);
     struct tcphdr *tcp = skb_to_tcphdr(skb);
     struct packet_tuple pkt_tuple = {};
-    pkt_tuple.saddr = ip->saddr;
-    pkt_tuple.daddr = ip->daddr;
-    u16 sport = 0, dport = 0;
-    u32 seq = 0, ack = 0; 
-    sport = tcp->source;
-    dport = tcp->dest;
-    sport = ntohs(sport);
-    dport = ntohs(dport);
-    pkt_tuple.sport = sport;
-    pkt_tuple.dport = dport;
+    get_pkt_tuple(&pkt_tuple, ip, tcp);
 
     FILTER_PORT
     FILTER_DPORT
     FILTER_SPORT
-
-    seq = tcp->seq;
-    ack = tcp->ack_seq;
-    pkt_tuple.seq = ntohl(seq);
-    pkt_tuple.ack = ntohl(ack);
     
     struct ktime_info *tinfo;
     if ((tinfo = in_timestamps.lookup(&pkt_tuple)) == NULL)
@@ -263,7 +222,7 @@ int trace_skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb)
     data.sport = pkt_tuple.sport;
     data.dport = pkt_tuple.dport;
     data.seq = pkt_tuple.seq;
-    data.ack = ack;
+    data.ack = pkt_tuple.ack;
   
     in_timestamps.delete(&pkt_tuple);
     timestamp_events.perf_submit(ctx, &data, sizeof(data));
@@ -338,7 +297,6 @@ def print_event(cpu, data, size):
 b = BPF(text=bpf_text)
 trace_prefix = "trace_"
 kprobe_functions_list = ["eth_type_trans", "ip_rcv", "tcp_v4_rcv", "skb_copy_datagram_iter"]
-kretprobe_functions_list = []
 for i in range(len(kprobe_functions_list)):
     function = kprobe_functions_list[i]
     trace_function = trace_prefix + function
@@ -347,18 +305,6 @@ for i in range(len(kprobe_functions_list)):
         exit()
     if b.get_kprobe_functions(function):
         b.attach_kprobe(event=function, fn_name=trace_function)
-    else:
-        print("ERROR: %s() kernel function not found or traceable." % (function))
-        exit()
-
-for i in range(len(kretprobe_functions_list)):
-    function = kretprobe_functions_list[i]
-    trace_function = trace_prefix + function
-    function = valid_function_name(function)
-    if function == None:
-        exit()
-    if b.get_kprobe_functions(function):
-        b.attach_kretprobe(event=function, fn_name=trace_function)
     else:
         print("ERROR: %s() kernel function not found or traceable." % (function))
         exit()

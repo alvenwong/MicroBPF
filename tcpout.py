@@ -114,6 +114,20 @@ static inline struct iphdr *skb_to_iphdr(const struct sk_buff *skb)
 }
 
 
+static void get_pkt_tuple(struct packet_tuple *pkt_tuple, struct iphdr *ip, struct tcphdr *tcp)
+{
+    u16 dport = 0;
+    u32 seq = 0, ack = 0; 
+
+    pkt_tuple->daddr = ip->daddr;
+    dport = tcp->dest;
+    pkt_tuple->dport = ntohs(dport);
+    seq = tcp->seq;
+    ack = tcp->ack_seq;
+    pkt_tuple->seq = ntohl(seq);
+    pkt_tuple->ack = ntohl(ack);
+} 
+
 int trace_sch_direct_xmit(struct pt_regs *ctx, struct sk_buff *skb)
 {
     if (skb == NULL)
@@ -121,20 +135,13 @@ int trace_sch_direct_xmit(struct pt_regs *ctx, struct sk_buff *skb)
 
     struct iphdr *ip = skb_to_iphdr(skb);
     struct tcphdr *tcp = skb_to_tcphdr(skb);
-
     struct packet_tuple pkt_tuple = {};
-    pkt_tuple.daddr = ip->daddr;
-    u16 dport = 0, sport = 0;
-    u32 seq = 0, ack = 0;
-    dport = tcp->dest;
-    sport = tcp->source;
-    pkt_tuple.dport = ntohs(dport);
-    seq = tcp->seq;
-    ack = tcp->ack_seq;
-    pkt_tuple.seq = ntohl(seq);
-    pkt_tuple.ack = ntohl(ack);
+    get_pkt_tuple(&pkt_tuple, ip, tcp);
 
     FILTER_DPORT
+
+    u16 sport = 0;
+    sport = tcp->source;
 
     struct flow_tuple *ftuple;
     if((ftuple = flows.lookup(&pkt_tuple)) == NULL)
@@ -173,20 +180,13 @@ int trace_dev_hard_start_xmit(struct pt_regs *ctx, struct sk_buff *skb)
 
     struct iphdr *ip = skb_to_iphdr(skb);
     struct tcphdr *tcp = skb_to_tcphdr(skb);
-
     struct packet_tuple pkt_tuple = {};
-    pkt_tuple.daddr = ip->daddr;
-    u16 dport = 0, sport = 0;
-    u32 seq = 0, ack = 0;
-    dport = tcp->dest;
-    sport = tcp->source;
-    pkt_tuple.dport = ntohs(dport);
-    seq = tcp->seq;
-    ack = tcp->ack_seq;
-    pkt_tuple.seq = ntohl(seq);
-    pkt_tuple.ack = ntohl(ack);
+    get_pkt_tuple(&pkt_tuple, ip, tcp);
 
     FILTER_DPORT
+
+    u16 sport = 0;
+    sport = tcp->source;
 
     struct flow_tuple *ftuple;
     if((ftuple = flows.lookup(&pkt_tuple)) == NULL)
@@ -225,21 +225,11 @@ int trace_dev_queue_xmit(struct pt_regs *ctx, struct sk_buff *skb)
 
     struct iphdr *ip = skb_to_iphdr(skb);
     struct tcphdr *tcp = skb_to_tcphdr(skb);
-
     struct packet_tuple pkt_tuple = {};
-    pkt_tuple.daddr = ip->daddr;
-    u16 dport = 0, sport = 0;
-    u32 seq = 0, ack = 0;
-    dport = tcp->dest;
-    sport = tcp->source;
-    pkt_tuple.dport = ntohs(dport);
-    seq = tcp->seq;
-    ack = tcp->ack_seq;
-    pkt_tuple.seq = ntohl(seq);
-    pkt_tuple.ack = ntohl(ack);
+    get_pkt_tuple(&pkt_tuple, ip, tcp);
 
     FILTER_DPORT
-    
+
     struct ktime_info *tinfo;
     if ((tinfo = out_timestamps.lookup(&pkt_tuple)) == NULL)
         return 0;
@@ -311,7 +301,6 @@ int trace_tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buff 
 
         flows.lookup_or_init(&pkt_tuple, &ftuple);
         struct ktime_info *tinfo, zero = {};
-
         if ((tinfo = out_timestamps.lookup_or_init(&pkt_tuple, &zero)) == NULL)
             return 0;
 
@@ -391,7 +380,6 @@ def print_event(cpu, data, size):
 b = BPF(text=bpf_text)
 trace_prefix = "trace_"
 kprobe_functions_list = ["tcp_transmit_skb", "ip_queue_xmit", "dev_queue_xmit", "dev_hard_start_xmit", "sch_direct_xmit"]
-kretprobe_functions_list = []
 for i in range(len(kprobe_functions_list)):
     function = kprobe_functions_list[i]
     trace_function = trace_prefix + function
@@ -400,18 +388,6 @@ for i in range(len(kprobe_functions_list)):
         exit()
     if b.get_kprobe_functions(function):
         b.attach_kprobe(event=function, fn_name=trace_function)
-    else:
-        print("ERROR: %s() kernel function not found or traceable." % (function))
-        exit()
-
-for i in range(len(kretprobe_functions_list)):
-    function = kretprobe_functions_list[i]
-    trace_function = trace_prefix + function
-    function = valid_function_name(function)
-    if function == None:
-        exit()
-    if b.get_kprobe_functions(function):
-        b.attach_kretprobe(event=function, fn_name=trace_function)
     else:
         print("ERROR: %s() kernel function not found or traceable." % (function))
         exit()
