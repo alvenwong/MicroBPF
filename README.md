@@ -107,13 +107,16 @@ tcpack.py: trace flow-level metrics triggered by ACKs. <br>
 tcpsock.py: just an example to probe ReadByte and WriteByte. <br>
   
 # Kernel Functions Probe
-Refer to [perf.md](https://github.com/alvenwong/kernel_trace/blob/master/perf.md)
+Refer to [perf.md](https://github.com/alvenwong/kernel_trace/blob/master/perf.md).
+
+# Main functions in network stack
+Refer to [network_kernel.md](https://github.com/alvenwong/docs/blob/master/network_kernel.md).
 
 # How to run 
-Refer to [docker.md](https://github.com/alvenwong/kernel_trace/blob/master/docker.md)
+Refer to [docker.md](https://github.com/alvenwong/kernel_trace/blob/master/docker.md).
 
 # Container
-Refer to [docker.md](https://github.com/alvenwong/kernel_trace/blob/master/docker.md)
+Refer to [docker.md](https://github.com/alvenwong/kernel_trace/blob/master/docker.md).
 
 # Test Examples
 Refer to [test_example.md](https://github.com/alvenwong/kernel_trace/blob/master/test_exampe.md)
