@@ -2,9 +2,8 @@
 
 import socket
 import select
+import errno
 
-EOL1 = b'\n\n'
-EOL2 = b'\n\r\n'
 response  = b'HTTP/1.0 200 OK\r\nDate: Mon, 1 Jan 1996 01:01:01 GMT\r\n'
 response += b'Content-Type: text/plain\r\nContent-Length: 13\r\n\r\n'
 response += b'Hello, world!'
@@ -16,45 +15,58 @@ host = socket.gethostname()
 port = 5000
 serversocket.bind((host, port))
 serversocket.listen(1)
+print("Listening")
 # the socket is set to be non-blocking
 serversocket.setblocking(0)
 
 epoll = select.epoll()
-epoll = register(serversocket.fileno(), select.EPOLLIN)
+epoll.register(serversocket.fileno(), select.EPOLLIN)
 
 try:
     connections = {}
     requests = {}
-    responces = {}
+    responses = {}
     while True:
         events = epoll.poll(1)
         for fileno, event in events:
             if fileno == serversocket.fileno():
                 connection, address = serversocket.accept()
+                print("Connection from: " + str(address))
                 connection.setblocking(0)
                 cfileno = connection.fileno()
                 # Register interest in read (EPOLLIN) events for the new socket.
                 epoll.register(cfileno, select.EPOLLIN)
                 connections[cfileno] = connection
                 requests[cfileno] = b''
-                responces[cfileno] = responce
+                responses[cfileno] = response
             elif event & select.EPOLLIN:
-                requests[fileno] += connections[fileno].recv(1024)
-                if EOL1 in requests[fileno] or EOL2 in requests[fileno]:
-                    epoll.modify(fileno, select.EPOLLOUT)
-                    print('-'*40 + '\n' + requests[fileno].decode()[:-2])
+                requests[fileno] = connections[fileno].recv(1024)
+                epoll.modify(fileno, select.EPOLLOUT)
+                print('-'*40 + '\n' + requests[fileno].decode())
             elif event & select.EPOLLOUT:
-                bytewritten = connections[fileno].send(responces[fileno])
-                responces[fileno] = responces[fileno][byteswrittens:]
-                if len(responces[fileno]) == 0:
-                    epoll.modify(fileno, 0)
-                    connections[fileno].shutdown(socket.SHUT_RDWR)
+                try:
+                    byteswritten = connections[fileno].send(responses[fileno])
+                    #if len(responses[fileno]) == 0:
+                    epoll.modify(fileno, select.EPOLLIN)
+                except socket.error, e:
+                    if isinstance(e.args, tuple):
+                        if e[0] == errno.EPIPE:
+                            print("Detected remote disconnect")
+                            epoll.unregister(fileno)
+                            connections[fileno].close()
+                            del connections[fileno]
+                            #epoll.modify(fileno, 0)
+                            #connections[fileno].shutdown(socket.SHUT_RDWR)
+                        else:
+                            print("socket error" + e)
             # The HUP (hang-up) event indicates that the client socket has been disconnected.
             elif event & select.EPOLLHUP:
                 epoll.unregister(fileno)
                 connections[fileno].close()
                 del connections[fileno]
+except KeyboardInterrupt:
+    pass
 finally:
-    epoll.unregister(serversocket.fileno)
+    epoll.unregister(serversocket.fileno())
     epoll.close()
     serversocket.close()
