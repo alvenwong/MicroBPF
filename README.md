@@ -119,4 +119,4 @@ Refer to [docker.md](https://github.com/alvenwong/kernel_trace/blob/master/docke
 Refer to [docker.md](https://github.com/alvenwong/kernel_trace/blob/master/docker.md).
 
 # Test Examples
-Refer to [test_example.md](https://github.com/alvenwong/kernel_trace/blob/master/test_exampe.md)
+Refer to [test_example.md](https://github.com/alvenwong/kernel_trace/blob/master/test_example.md)
