@@ -24,7 +24,7 @@ class Server:
         print("Listening")
         # the socket is set to be non-blocking
         self.serversocket.setblocking(0)
-        self.epoll.register(serversocket.fileno(), select.EPOLLIN)
+        self.epoll.register(self.serversocket.fileno(), select.EPOLLIN)
 
     def process(self):
         connections = {}
@@ -42,10 +42,10 @@ class Server:
                     self.epoll.register(cfileno, select.EPOLLIN)
                     connections[cfileno] = connection
                 elif event & select.EPOLLIN:
-                    requests[fileno] = connections[fileno].recv(1024)
+                    requests[fileno] = connections[fileno].recv(4096)
                     print('-'*40 + '\n' + requests[fileno].decode())
-                    self.epoll.modify(fileno, select.EPOLLOUT)
-                    responses[fileno] = str(len(requestions[fileno].decode()))
+                    self.epoll.modify(fileno, select.EPOLLIN)
+                    responses[fileno] = ''
                 elif event & select.EPOLLOUT:
                     try:
                         byteswritten = connections[fileno].send(responses[fileno])
@@ -69,7 +69,7 @@ class Server:
 
 
     def shutdown(self):
-        self.epoll.unregister(serversocket.fileno())
+        self.epoll.unregister(self.serversocket.fileno())
         self.epoll.close()
         self.serversocket.close()
 
@@ -79,7 +79,7 @@ class Server:
         try:
             self.process()
         except KeyboardInterrupt:
-            pass
+            exit()
         finally:
             self.shutdown()
 
@@ -88,9 +88,10 @@ def get_parameters():
     config.read(cfgFilename)
     host = config.get("Socket", "IP")
     port = config.get("Socket", "port")
-    return host, port
+    return host, int(port)
 
 
 if __name__ == "__main__":
     host, port = get_parameters()
     server = Server(host, port)
+    server.run()
