@@ -8,17 +8,19 @@ def client_program():
 
     client_socket = socket.socket()  # instantiate
     client_socket.connect((host, port))  # connect to the server
-
+    fd = open("README.md", "rd")
     try:
-        message = raw_input(" -> ")  # take input
-        while message.lower().strip() != 'bye':
+        message = fd.read(10240)
+        while message:
+            print("Sending...")
             client_socket.send(message.encode())  # send message
-            data = client_socket.recv(1024).decode()  # receive response
-            print('Received from server: ' + data)  # show in terminal
-            message = raw_input(" -> ")  # again take input
+            #data = client_socket.recv(1024).decode()  # receive response
+            #print('Received from server: ' + data)  # show in terminal
+            message = fd.read(10240)
     except KeyboardInterrupt:
         pass
     finally:
+        fd.close()
         client_socket.close()  # close the connection
 
 
