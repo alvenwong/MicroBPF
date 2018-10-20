@@ -42,10 +42,21 @@ class Server:
                     self.epoll.register(cfileno, select.EPOLLIN)
                     connections[cfileno] = connection
                 elif event & select.EPOLLIN:
-                    requests[fileno] = connections[fileno].recv(4096)
-                    print('-'*40 + '\n' + requests[fileno].decode())
-                    self.epoll.modify(fileno, select.EPOLLIN)
-                    responses[fileno] = ''
+                    try:
+                        requests[fileno] = connections[fileno].recv(8)
+                        print(requests[fileno].decode())
+                        self.epoll.modify(fileno, select.EPOLLIN)
+                    except socket.error, e:
+                        if isinstance(e.args, tuple):
+                            if e[0] == errno.EPIPE:
+                                print("Detected remote disconnect")
+                                self.epoll.unregister(fileno)
+                                connections[fileno].close()
+                                del connections[fileno]
+                            else:
+                                print("socket error")
+                        else:
+                            print("socket error" + e)
                 elif event & select.EPOLLOUT:
                     try:
                         byteswritten = connections[fileno].send(responses[fileno])
@@ -59,8 +70,8 @@ class Server:
                                 del connections[fileno]
                                 #epoll.modify(fileno, 0)
                                 #connections[fileno].shutdown(socket.SHUT_RDWR)
-                            else:
-                                print("socket error" + e)
+                        else:
+                             print("socket error" + e)
                 # The HUP (hang-up) event indicates that the client socket has been disconnected.
                 elif event & select.EPOLLHUP:
                     self.epoll.unregister(fileno)
