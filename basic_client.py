@@ -5,21 +5,20 @@ import socket
 
 def client_program():
     #host = socket.gethostname()  # as both code is running on same pc
-    host = "127.0.0.1"
+    host = "192.168.0.108"
     port = 5000  # socket server port number
-
     client_socket = socket.socket()  # instantiate
     client_socket.connect((host, port))  # connect to the server
+
     fd = open("test", "rd")
     try:
         while True:
-            message = fd.read(1024)
+            message = fd.read()
             while message:
-                print("Sending...")
+                print(message)
                 client_socket.send(message.encode())  # send message
-                #data = client_socket.recv(1024).decode()  # receive response
-                #print('Received from server: ' + data)  # show in terminal
-                message = fd.read(1024)
+                message = fd.read()
+            fd.seek(0, 2)
             time.sleep(5)
     except KeyboardInterrupt:
         pass
