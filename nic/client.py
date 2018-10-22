@@ -5,7 +5,7 @@ import socket
 
 def client_program():
     #host = socket.gethostname()  # as both code is running on same pc
-    host = "192.168.0.108"
+    host = "192.168.2.245"
     port = 5000  # socket server port number
     client_socket = socket.socket()  # instantiate
     client_socket.connect((host, port))  # connect to the server
@@ -13,11 +13,11 @@ def client_program():
     fd = open("test", "rd")
     try:
         while True:
-            message = fd.read()
+            message = fd.readlines()
             while message:
                 print(message)
                 client_socket.send(message.encode())  # send message
-                message = fd.read()
+                message = fd.readlines()
             fd.seek(0, 2)
             time.sleep(5)
     except KeyboardInterrupt:
