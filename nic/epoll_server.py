@@ -23,9 +23,10 @@ class Server:
     messages = {}
     filefds = {}
     addresses = {}
+    findex = {}
     filenames = {}
 
-    def __init__(self, host, port, path, msize=10*1024):
+    def __init__(self, host, port, path, msize=10*1024*1024):
         self.host = host
         self.port = port
         self.path = path
@@ -116,7 +117,7 @@ class Server:
                         self.close_connection(fileno)
                 elif event & select.EPOLLOUT:
                     try:
-                        byteswritten = connections[fileno].send("test")
+                        byteswritten = connections[fileno].send("test".encode())
                         self.epoll.modify(fileno, select.EPOLLIN)
                     except socket.error, e:
                         if isinstance(e.args, tuple):
