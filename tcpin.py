@@ -7,7 +7,7 @@ from socket import inet_ntop, AF_INET, AF_INET6
 from struct import pack
 import ctypes as ct
 from bcc import tcp
-from os import kill, getpid
+from os import kill, getpid, path
 from subprocess import call
 from signal import SIGKILL
 import argparse
@@ -77,6 +77,7 @@ struct ktime_info {
 
 struct data_t {
     u64 total_time;
+    u64 mac_timestamp;
     u64 mac_time;
     u64 ip_time;
     u64 tcp_time;
@@ -214,6 +215,7 @@ int trace_skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb)
     tinfo->app_time = bpf_ktime_get_ns();
     struct data_t data = {};
     data.total_time = tinfo->app_time - tinfo->mac_time;
+    data.mac_timestamp = tinfo->mac_time;
     data.mac_time = tinfo->ip_time - tinfo->mac_time;
     data.ip_time = tinfo->tcp_time - tinfo->ip_time;
     data.tcp_time = tinfo->app_time - tinfo->tcp_time;
@@ -257,7 +259,8 @@ else:
 if args.output:
     if check_filename(args.output):
         output_dir = "/usr/local/bcc/"
-        call(["mkdir", "-p", output_dir])
+        if not path.isdir(output_dir):
+            call(["mkdir", "-p", output_dir])
         output_file = output_dir + args.output
         sys.stdout = open(output_file, "w+")
     else:
@@ -268,6 +271,7 @@ if args.output:
 class Data_t(ct.Structure):
     _fields_ = [
         ("total_time", ct.c_ulonglong),
+        ("mac_timestamp", ct.c_ulonglong),
         ("mac_time", ct.c_ulonglong),
         ("ip_time", ct.c_ulonglong),
         ("tcp_time", ct.c_ulonglong),
@@ -282,11 +286,12 @@ class Data_t(ct.Structure):
 # process event
 def print_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data_t)).contents
-    print("%-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s" % (
+    print("%-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s %-10s" % (
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
         "%d" % (event.seq),
         "%d" % (event.ack),
+        "%d" % (event.mac_timestamp/1000),
         "%d" % (event.total_time/1000),
         "%d" % (event.mac_time/1000),
         "%d" % (event.ip_time/1000),
@@ -310,7 +315,8 @@ for i in range(len(kprobe_functions_list)):
         exit()
 
 # header
-print("%-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s" % ("SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TOTAL", "MAC", "IP", "TCP"))
+if not args.output:
+    print("%-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s" % ("SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "MTime", "TOTAL", "MAC", "IP", "TCP"))
 
 # read events
 b["timestamp_events"].open_perf_buffer(print_event)
