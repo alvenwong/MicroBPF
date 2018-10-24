@@ -7,19 +7,29 @@ import errno
 import ConfigParser
 
 
-config = ConfigParser.RawConfigParser()
-cfgFilename = 'example.cfg'
+def get_parameters():
+    config = ConfigParser.RawConfigParser()
+    cfgFilename = 'example.cfg'
+    config.read(cfgFilename)
+    host = config.get("Socket", "IP")
+    port = config.get("Socket", "port")
+    path = config.get("File", "path")
+    msize = config.get("File", "max_size")
+    return host, int(port), path
 
 
 class Server:
     connections = {}
     messages = {}
     filefds = {}
+    addresses = {}
+    filenames = {}
 
-    def __init__(self, host, port, path):
+    def __init__(self, host, port, path, msize=10*1024):
         self.host = host
         self.port = port
         self.path = path
+        self.MAX_FILE_SIZE = msize
         self.serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.epoll = select.epoll()
 
@@ -40,6 +50,21 @@ class Server:
         self.epoll.register(self.serversocket.fileno(), select.EPOLLIN)
 
 
+    def update_file(self, fileno):
+        findex = self.findex[fileno]
+        if findex > 0:
+            try:
+                self.filefds[fileno].close()
+            except IOError, e:
+                print(e)
+
+        address = self.addresses[fileno]
+        filename = self.path + str(address[0]) + '_' + str(address[1]) + '_' + str(findex)
+        self.filenames[fileno] = filename
+        self.filefds[fileno] = open(filename, "w+")
+        self.findex[fileno] += 1
+
+
     def init_accept(self):
         connection, address = self.serversocket.accept()
         print("Connection from: " + str(address))
@@ -48,7 +73,9 @@ class Server:
         # Register interest in read (EPOLLIN) events for the new socket.
         self.epoll.register(cfileno, select.EPOLLIN)
         self.connections[cfileno] = connection
-        self.filefds[cfileno] = open(self.path+str(address[0])+str(address[1]), "w+")
+        self.addresses[cfileno] = address
+        self.findex[cfileno] = 0
+        self.update_file(cfileno)
 
 
     def close_connection(self, fileno):
@@ -57,6 +84,9 @@ class Server:
         del self.connections[fileno]
         self.filefds[fileno].close()
 
+
+    def get_file_size(self, fileno):
+       return os.path.getsize(self.filenames[fileno])
 
 
     def process(self):
@@ -73,6 +103,8 @@ class Server:
                             print(message)
                             self.filefds[fileno].write(message)
                         self.epoll.modify(fileno, select.EPOLLIN)
+                        if self.get_file_size(fileno) > self.MAX_FILE_SIZE:
+                            self.update_file(fileno)
                     except socket.error, e:
                         if isinstance(e.args, tuple):
                             if e[0] == errno.EPIPE:
@@ -84,7 +116,7 @@ class Server:
                         self.close_connection(fileno)
                 elif event & select.EPOLLOUT:
                     try:
-                        byteswritten = connections[fileno].send(responses[fileno])
+                        byteswritten = connections[fileno].send("test")
                         self.epoll.modify(fileno, select.EPOLLIN)
                     except socket.error, e:
                         if isinstance(e.args, tuple):
@@ -110,17 +142,10 @@ class Server:
         try:
             self.process()
         except KeyboardInterrupt:
-            exit()
+            pass
         finally:
             self.shutdown()
 
-
-def get_parameters():
-    config.read(cfgFilename)
-    host = config.get("Socket", "IP")
-    port = config.get("Socket", "port")
-    path = config.get("File", "path")
-    return host, int(port), path
 
 
 if __name__ == "__main__":
