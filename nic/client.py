@@ -1,23 +1,29 @@
 #!/usr/bin/env python
 import time
 import socket
+import ConfigParser
 
 
-def client_program():
-    #host = socket.gethostname()  # as both code is running on same pc
-    host = "192.168.2.245"
-    port = 5000  # socket server port number
+def get_parameters(cfg):
+    config = ConfigParser.RawConfigParser()
+    config.read(cfg)
+    host = config.get("Socket", "IP")
+    port = config.get("Socket", "port")
+    path = config.get("File", "path")
+    return host, int(port), path
+
+
+def client_program(host, port, path):
     client_socket = socket.socket()  # instantiate
     client_socket.connect((host, port))  # connect to the server
 
-    fd = open("test", "rd")
+    fd = open(path, "rd")
     try:
         while True:
-            message = fd.readlines()
+            message = fd.read()
             while message:
-                print(message)
                 client_socket.send(message.encode())  # send message
-                message = fd.readlines()
+                message = fd.read()
             fd.seek(0, 2)
             time.sleep(5)
     except KeyboardInterrupt:
@@ -28,4 +34,6 @@ def client_program():
 
 
 if __name__ == '__main__':
-    client_program()
+    cfgFilename = 'example.cfg'
+    host, port, path = get_parameters(cfgFilename) 
+    client_program(host, port, path)
