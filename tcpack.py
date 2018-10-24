@@ -11,7 +11,7 @@ from time import sleep
 from bcc import tcp
 import argparse
 from subprocess import call
-from os import kill, getpid
+from os import kill, getpid, path
 from signal import SIGKILL
 import sys
 from tcptools import check_filename, valid_function_name
@@ -229,7 +229,8 @@ else:
 if args.output:
     if check_filename(args.output):
         output_dir = "/usr/local/bcc/"
-        call(["mkdir", "-p", output_dir])
+        if not path.isdir(output_dir):
+            call(["mkdir", "-p", output_dir])
         output_file = output_dir + args.output
         sys.stdout = open(output_file, "w+")
     else:
@@ -268,7 +269,7 @@ def print_ipv4_event(cpu, data, size):
         strftime("%H:%M:%S"), event.pid,
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
-        "%d" % (event.srtt / 1000),
+        "%d" % (event.srtt/1000),
         "%d" % (event.snd_cwnd),
         "%d" % (event.packets_out),
         tcp.tcpstate[event.state], tcp.flags2str(event.tcpflags)))

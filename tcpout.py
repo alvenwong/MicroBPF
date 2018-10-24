@@ -7,7 +7,7 @@ from socket import inet_ntop, AF_INET, AF_INET6
 from struct import pack
 import ctypes as ct
 from bcc import tcp
-from os import kill, getpid
+from os import kill, getpid, path
 from subprocess import call
 from signal import SIGKILL
 import argparse
@@ -84,6 +84,7 @@ struct ktime_info {
 
 struct data_t {
     u64 total_time;
+    u64 qdisc_timestamp;
     u64 qdisc_time;
     u64 ip_time;
     u64 tcp_time;
@@ -153,6 +154,7 @@ int trace_sch_direct_xmit(struct pt_regs *ctx, struct sk_buff *skb)
     tinfo->qdisc_time = bpf_ktime_get_ns();
     struct data_t data = {};
     data.total_time = tinfo->qdisc_time - tinfo->tcp_time;
+    data.qdisc_timestamp = tinfo->qdisc_time;
     data.qdisc_time = tinfo->qdisc_time - tinfo->mac_time;
     data.ip_time = tinfo->mac_time - tinfo->ip_time;
     data.tcp_time = tinfo->ip_time - tinfo->tcp_time;
@@ -198,6 +200,7 @@ int trace_dev_hard_start_xmit(struct pt_regs *ctx, struct sk_buff *skb)
     tinfo->qdisc_time = bpf_ktime_get_ns();
     struct data_t data = {};
     data.total_time = tinfo->qdisc_time - tinfo->tcp_time;
+    data.qdisc_timestamp = tinfo->qdisc_time;
     data.qdisc_time = tinfo->qdisc_time - tinfo->mac_time;
     data.ip_time = tinfo->mac_time - tinfo->ip_time;
     data.tcp_time = tinfo->ip_time - tinfo->tcp_time;
@@ -337,8 +340,10 @@ else:
 if args.output:
     if check_filename(args.output):
         output_dir = "/usr/local/bcc/"
-        call(["mkdir", "-p", output_dir])
+        if not path.isdir(output_dir):
+            call(["mkdir", "-p", output_dir])
         output_file = output_dir + args.output
+        print(output_file)
         sys.stdout = open(output_file, "w+")
     else:
         print("The output filename is invalid. Exit...")
@@ -348,6 +353,7 @@ if args.output:
 class Data_t(ct.Structure):
     _fields_ = [
         ("total_time", ct.c_ulonglong),
+        ("qdisc_timestamp", ct.c_ulonglong),
         ("qdisc_time", ct.c_ulonglong),
         ("ip_time", ct.c_ulonglong),
         ("tcp_time", ct.c_ulonglong),
@@ -364,12 +370,13 @@ class Data_t(ct.Structure):
 # process event
 def print_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data_t)).contents
-    print("%-20s -> %-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s" % (
+    print("%-20s -> %-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s %-10s" % (
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.nat_saddr)), event.nat_sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
         "%d" % (event.seq),
         "%d" % (event.ack),
+        "%d" % (event.qdisc_timestamp/1000),
         "%d" % (event.total_time/1000),
         "%d" % (event.qdisc_time/1000),
         "%d" % (event.ip_time/1000),
@@ -393,7 +400,8 @@ for i in range(len(kprobe_functions_list)):
         exit()
 
 # header
-print("%-20s -> %-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s" % ("SADDR:SPORT", "NAT:PORT", "DADDR:DPORT", "SEQ", "ACK", "TOTAL", "QDisc", "IP", "TCP"))
+if not args.output:
+    print("%-20s -> %-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s %-10s" % ("SADDR:SPORT", "NAT:PORT", "DADDR:DPORT", "SEQ", "ACK", "QTIME", "TOTAL", "QDisc", "IP", "TCP"))
 
 # read events
 b["timestamp_events"].open_perf_buffer(print_event)
