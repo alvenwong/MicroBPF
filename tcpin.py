@@ -13,6 +13,7 @@ from signal import SIGKILL
 import argparse
 import sys
 from tcptools import check_filename, valid_function_name
+from clock import Time
 
 # arguments
 examples = """examples:
@@ -283,15 +284,18 @@ class Data_t(ct.Structure):
         ("ack", ct.c_uint),
     ]
 
+
+tm = Time()
+
 # process event
 def print_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data_t)).contents
-    print("%-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s %-10s" % (
+    print("%-20s > %-20s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % (
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
         "%d" % (event.seq),
         "%d" % (event.ack),
-        "%d" % (event.mac_timestamp/1000),
+        "%f" % (tm.get_abs_time(event.mac_timestamp*1e-9)),
         "%d" % (event.total_time/1000),
         "%d" % (event.mac_time/1000),
         "%d" % (event.ip_time/1000),
@@ -316,7 +320,7 @@ for i in range(len(kprobe_functions_list)):
 
 # header
 if not args.output:
-    print("%-20s > %-20s %-12s %-12s %-10s %-10s %-10s %-10s" % ("SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "MTime", "TOTAL", "MAC", "IP", "TCP"))
+    print("%-20s > %-20s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % ("SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "ABS", "TOTAL", "MAC", "IP", "TCP"))
 
 # read events
 b["timestamp_events"].open_perf_buffer(print_event)
