@@ -16,8 +16,11 @@ def get_parameters(cfg):
 def client_program(host, port, path):
     client_socket = socket.socket()  # instantiate
     client_socket.connect((host, port))  # connect to the server
+    
+    fd = open(path, 'w')
+    fd.close()
+    fd = open(path, 'r')
 
-    fd = open(path, "rd")
     try:
         while True:
             message = fd.read()
@@ -34,6 +37,6 @@ def client_program(host, port, path):
 
 
 if __name__ == '__main__':
-    cfgFilename = 'example.cfg'
+    cfgFilename = 'client.cfg'
     host, port, path = get_parameters(cfgFilename) 
     client_program(host, port, path)
