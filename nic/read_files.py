@@ -29,6 +29,7 @@ class ReadFiles:
         filepath = os.path.join(self.path, filename)
         try:
             fd = open(filepath, "rb")
+            print(filepath)
             return fd
         except (OSError, IOError) as e:
             print("%s open error!" % (filepath))
