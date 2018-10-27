@@ -73,6 +73,8 @@ struct ipv4_data_t {
     u32 daddr;
     u16 sport;
     u16 dport;
+    u32 seq;
+    u32 ack;
     u8 state;
     u8 tcpflags;
     u32 snd_cwnd;
@@ -119,7 +121,7 @@ int trace_tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb)
     u64 time = bpf_ktime_get_ns();
     SAMPLING
     char state = sk->__sk_common.skc_state;
-    u32 ack_seq = 0, seq = 0, snd_cwnd = 0;
+    u32 ack = 0, seq = 0, snd_cwnd = 0;
     u16 sport = 0, dport = 0;
     struct tcphdr *tcp = skb_to_tcphdr(skb);
     struct iphdr *ip = skb_to_iphdr(skb);
@@ -129,6 +131,9 @@ int trace_tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb)
     dport = tcp->dest;
     sport = ntohs(sport);
     dport = ntohs(dport);
+    seq = tcp->seq;
+    ack = tcp->ack_seq;
+
 
     FILTER_PORT
     FILTER_DPORT
@@ -143,6 +148,8 @@ int trace_tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb)
     data4.daddr = ip->daddr;
     data4.dport = dport;
     data4.sport = sport;
+    data4.seq = ntohl(seq);
+    data4.ack = ntohl(ack);
     data4.state = state;
     data4.tcpflags = tcpflags;
     data4.snd_cwnd = tp->snd_cwnd;
@@ -158,8 +165,6 @@ int trace_tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb)
     data4.packets_out = tp->packets_out;
     data4.duration = bpf_ktime_get_ns() - finfo->init_time;
     data4.bytes_inflight = tp->snd_nxt - tp->snd_una; 
-    // if (finfo->max_bytes_inflight < bytes_inflight) {
-    //    finfo->max_bytes_inflight = bytes_inflight;
 
     ipv4_events.perf_submit(ctx, &data4, sizeof(data4));
 
@@ -245,6 +250,8 @@ class Data_ipv4(ct.Structure):
         ("daddr", ct.c_uint),
         ("sport", ct.c_ushort),
         ("dport", ct.c_ushort),
+        ("seq", ct.c_uint),
+        ("ack", ct.c_uint),
         ("state", ct.c_ubyte),
         ("tcpflags", ct.c_ubyte),
         ("snd_cwnd", ct.c_uint),
@@ -265,12 +272,13 @@ class Data_ipv4(ct.Structure):
 # process event
 def print_ipv4_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data_ipv4)).contents
-    print("3 %-20s > %-20s %-8s %-8s %-8s %-12s (%s)" % (
+    print("3 %-20s -> %-20s %-10s %-10s %-8s %-8s %-12s (%s)" % (
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
+        "%d" % (event.seq),
+        "%d" % (event.ack),
         "%d" % (event.srtt >> 3),
         "%d" % (event.snd_cwnd),
-        "%d" % (event.packets_out),
         tcp.tcpstate[event.state], tcp.flags2str(event.tcpflags)))
 
 # initialize BPF
@@ -290,7 +298,7 @@ for i in range(len(functions_list)):
         exit()
 
 # header
-print("%-20s > %-20s %-8s %-8s %-8s %-12s (%s)" % ("SADDR:SPORT", "DADDR:DPORT", "RTT(us)", "CWnd", "PKTOUT", "STATE", "FLAGS"))
+print("%-20s -> %-20s %-10s %-10s %-8s %-8s %-12s (%s)" % ("SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "RTT(us)", "CWnd", "STATE", "FLAGS"))
 
 # read events
 b["ipv4_events"].open_perf_buffer(print_ipv4_event)
