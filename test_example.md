@@ -24,7 +24,7 @@ vim /home/user/website/docker.html
 ```
 ## Run Apache benchmark image
 ```bash
-docker run --rm jordi/ab -k -c 10 -n 1000 http://x.x.x.x:8080/docker.html
+docker run --rm jordi/ab -k -c 10 -n 1000 http://x.x.x.x:80/docker.html
 ```
 x.x.x.x is the IP of the host (VM or PM) in which the benchmark container is running.
 
