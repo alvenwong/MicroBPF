@@ -15,7 +15,6 @@ import sys
 from tcptools import check_filename, valid_function_name
 from clock import Time
 
-
 # arguments
 examples = """examples:
     ./out_probe             # trace all TCP packets
@@ -130,6 +129,7 @@ static void get_pkt_tuple(struct packet_tuple *pkt_tuple, struct iphdr *ip, stru
     pkt_tuple->ack = ntohl(ack);
 } 
 
+
 int trace_sch_direct_xmit(struct pt_regs *ctx, struct sk_buff *skb)
 {
     if (skb == NULL)
@@ -152,6 +152,7 @@ int trace_sch_direct_xmit(struct pt_regs *ctx, struct sk_buff *skb)
     struct ktime_info *tinfo;
     if ((tinfo = out_timestamps.lookup(&pkt_tuple)) == NULL)
         return 0;
+
     tinfo->qdisc_time = bpf_ktime_get_ns();
     struct data_t data = {};
     data.total_time = tinfo->qdisc_time - tinfo->tcp_time;
@@ -290,7 +291,6 @@ int trace_tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buff 
         ftuple.saddr = sk->__sk_common.skc_rcv_saddr;
         ftuple.daddr = sk->__sk_common.skc_daddr;
         ftuple.sport = sk->__sk_common.skc_num;
-
         pkt_tuple.daddr = sk->__sk_common.skc_daddr;
         dport = sk->__sk_common.skc_dport;
         pkt_tuple.dport = ntohs(dport);
@@ -379,7 +379,7 @@ def print_event(cpu, data, size):
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
         "%d" % (event.seq),
         "%d" % (event.ack),
-        "%d" % (tm.get_abs_time(event.qdisc_timestamp*1e-9)),
+        "%f" % (tm.get_abs_time(event.qdisc_timestamp*1e-9)),
         "%d" % (event.total_time/1000),
         "%d" % (event.qdisc_time/1000),
         "%d" % (event.ip_time/1000),
@@ -389,7 +389,7 @@ def print_event(cpu, data, size):
 # initialize BPF
 b = BPF(text=bpf_text)
 trace_prefix = "trace_"
-kprobe_functions_list = ["tcp_transmit_skb", "ip_queue_xmit", "dev_queue_xmit", "dev_hard_start_xmit", "sch_direct_xmit"]
+kprobe_functions_list = ["tcp_transmit_skb", "ip_queue_xmit", "dev_queue_xmit", "sch_direct_xmit"]
 for i in range(len(kprobe_functions_list)):
     function = kprobe_functions_list[i]
     trace_function = trace_prefix + function
