@@ -373,7 +373,7 @@ tm = Time()
 # process event
 def print_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data_t)).contents
-    print("%-20s -> %-20s > %-20s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % (
+    print("1 %-20s -> %-20s -> %-20s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % (
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.nat_saddr)), event.nat_sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
