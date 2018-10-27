@@ -265,11 +265,10 @@ class Data_ipv4(ct.Structure):
 # process event
 def print_ipv4_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data_ipv4)).contents
-    print("%-8s %-4d %-20s > %-20s %-8s %-8s %-8s %-12s (%s)" % (
-        strftime("%H:%M:%S"), event.pid,
+    print("3 %-20s > %-20s %-8s %-8s %-8s %-12s (%s)" % (
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
-        "%d" % (event.srtt/1000),
+        "%d" % (event.srtt >> 3),
         "%d" % (event.snd_cwnd),
         "%d" % (event.packets_out),
         tcp.tcpstate[event.state], tcp.flags2str(event.tcpflags)))
@@ -291,8 +290,7 @@ for i in range(len(functions_list)):
         exit()
 
 # header
-print("%-8s %-4s %-20s > %-20s %-8s %-8s %-8s %-12s (%s)" % ("TIME", "PID",
-    "SADDR:SPORT", "DADDR:DPORT", "RTT(us)", "CWnd", "PKTOUT", "STATE", "FLAGS"))
+print("%-20s > %-20s %-8s %-8s %-8s %-12s (%s)" % ("SADDR:SPORT", "DADDR:DPORT", "RTT(us)", "CWnd", "PKTOUT", "STATE", "FLAGS"))
 
 # read events
 b["ipv4_events"].open_perf_buffer(print_ipv4_event)
