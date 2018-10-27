@@ -298,7 +298,8 @@ for i in range(len(functions_list)):
         exit()
 
 # header
-print("%-20s -> %-20s %-10s %-10s %-8s %-8s %-12s (%s)" % ("SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "RTT(us)", "CWnd", "STATE", "FLAGS"))
+if not args.output:
+    print("%-20s -> %-20s %-10s %-10s %-8s %-8s %-12s (%s)" % ("SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "RTT(us)", "CWnd", "STATE", "FLAGS"))
 
 # read events
 b["ipv4_events"].open_perf_buffer(print_ipv4_event)
