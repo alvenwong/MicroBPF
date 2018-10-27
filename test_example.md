@@ -4,7 +4,7 @@ We will use Apache and Redis containers to test our eBPF tools.
 # Apache
 ## Run Apache server image
 ```bash
-docker run -dit --name tecmint-web -p 8080:80 -v /home/user/website/:/usr/local/apache2/htdocs/ httpd:2.4
+docker run -dit --name tecmint-web -p 8080:8080 -v /home/user/website/:/usr/local/apache2/htdocs/ httpd:2.4
 ```
 ## An example HTML file
 ```bash
