@@ -9,7 +9,7 @@ import ConfigParser
 
 def get_parameters():
     config = ConfigParser.RawConfigParser()
-    cfgFilename = 'example.cfg'
+    cfgFilename = 'server.cfg'
     config.read(cfgFilename)
     host = config.get("Socket", "IP")
     port = config.get("Socket", "port")
@@ -45,7 +45,6 @@ class Server:
         self.serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.serversocket.bind((self.host, self.port))
         self.serversocket.listen(1)
-        print("Listening")
         # the socket is set to be non-blocking
         self.serversocket.setblocking(0)
         self.epoll.register(self.serversocket.fileno(), select.EPOLLIN)
@@ -53,7 +52,7 @@ class Server:
 
     def update_file(self, fileno):
         findex = self.findex[fileno]
-        if findex > 0:
+        if findex > 1:
             try:
                 self.filefds[fileno].close()
             except IOError, e:
@@ -62,7 +61,7 @@ class Server:
         address = self.addresses[fileno]
         filename = self.path + str(address[0]) + '_' + str(address[1]) + '_' + str(findex)
         self.filenames[fileno] = filename
-        self.filefds[fileno] = open(filename, "w+")
+        self.filefds[fileno] = open(filename, 'a+')
         self.findex[fileno] += 1
 
 
@@ -86,6 +85,10 @@ class Server:
         self.filefds[fileno].close()
 
 
+    def close_connections(self):
+        for fd in self.filefds.keys():
+            self.close_connection(fd)    
+    
     def get_file_size(self, fileno):
        return os.path.getsize(self.filenames[fileno])
 
@@ -101,11 +104,10 @@ class Server:
                         self.messages[fileno] = self.connections[fileno].recv(1024)
                         message = self.messages[fileno].decode()
                         if len(message) > 0:
-                            print(message)
                             self.filefds[fileno].write(message)
+                            if self.get_file_size(fileno) > self.MAX_FILE_SIZE:
+                                self.update_file(fileno)
                         self.epoll.modify(fileno, select.EPOLLIN)
-                        if self.get_file_size(fileno) > self.MAX_FILE_SIZE:
-                            self.update_file(fileno)
                     except socket.error, e:
                         if isinstance(e.args, tuple):
                             if e[0] == errno.EPIPE:
@@ -127,11 +129,13 @@ class Server:
                              print("socket error" + e)
                         self.close_connection(fileno)
                 # The HUP (hang-up) event indicates that the client socket has been disconnected.
-                elif event & select.EPOLLHUP:
+                elif event & (select.EPOLLHUP or select.EPOLLERR):
+                    print("connection closed")
                     self.close_connection(fileno)
 
 
     def shutdown(self):
+        self.close_connections()
         self.epoll.unregister(self.serversocket.fileno())
         self.epoll.close()
         self.serversocket.close()
@@ -146,7 +150,6 @@ class Server:
             pass
         finally:
             self.shutdown()
-
 
 
 if __name__ == "__main__":
