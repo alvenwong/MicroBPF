@@ -237,7 +237,7 @@ if args.output:
         if not path.isdir(output_dir):
             call(["mkdir", "-p", output_dir])
         output_file = output_dir + args.output
-        sys.stdout = open(output_file, "w+")
+        sys.stdout = open(output_file, "w+", buffering=0)
     else:
         print("The output filename is invalid. Exit...")
         exit()
