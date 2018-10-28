@@ -62,7 +62,7 @@ class Client:
                         client_socket.send(message.encode())  # send message
                         message = fd.read()
                     fd.seek(0, 2)
-            time.sleep(5)
+                time.sleep(5)
         except KeyboardInterrupt:
             pass
         finally:

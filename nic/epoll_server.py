@@ -61,7 +61,7 @@ class Server:
         address = self.addresses[fileno]
         filename = self.path + str(address[0]) + '_' + str(address[1]) + '_' + str(findex)
         self.filenames[fileno] = filename
-        self.filefds[fileno] = open(filename, 'a+')
+        self.filefds[fileno] = open(filename, 'a+', buffering=0)
         self.findex[fileno] += 1
 
 

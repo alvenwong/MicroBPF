@@ -13,20 +13,20 @@ class Collector:
 
 
     def get_ips(self, elements):
+        sip = ''
+        dip = ''
+
         if elements[0] == TCPOUT:
             sip = elements[3].split(':')[0]
             dip = elements[5].split(':')[0]
-            return sip + ' ' + dip
         elif elements[0] == TCPIN:
             sip = elements[1].split(':')[0]
             dip = elements[3].split(':')[0]
-            return sip + ' ' + dip
         elif elements[0] == TCPACK:
             sip = elements[1].split(':')[0]
             dip = elements[3].split(':')[0]
-            return sip + ' ' + dip
-        else:
-            return ''
+
+        return sip
 
 
     def get_tuple_index(self, elements):
@@ -80,14 +80,12 @@ class Collector:
 
 
     def check_line(self, elements):
-        valid_lens = [10, 11, 13]
-        valid_lables = [TCPOUT, TCPIN, TCPACK]
-        if len(elements) not in valid_lens: 
-            return False
-        if elements[0] not in valid_lables:
-            return False
+        if (elements[0] == TCPOUT and len(elements) == 13) \
+            or (elements[0] == TCPIN and len(elements) == 11) \
+            or (elements[0] == TCPACK and len(elements) == 10): 
+            return True
 
-        return True
+        return False
 
     def parse_entries(self, lines):
         for line in lines:
@@ -110,7 +108,7 @@ class Collector:
             else:
                 if ips not in self.delay_map:
                     self.delay_map[ips] = {}
-                self.delay_map[ips][key] = self.get_delay(value, self.data_map[key])
+                self.delay_map[ips][key] = self.get_delay(value, self.data_map[key]) 
                 del self.data_map[key]
 
     def get_maps(self):
