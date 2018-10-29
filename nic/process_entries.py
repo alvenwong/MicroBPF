@@ -3,6 +3,7 @@
 TCPOUT = '1'
 TCPIN = '2'
 TCPACK = '3'
+TCPNETWORK = '4'
 
 
 class Collector:
@@ -10,6 +11,7 @@ class Collector:
         self.data_map = {}
         self.delay_map = {}
         self.rtt_map = {}
+        self.kernel_latency = {}
 
 
     def get_ips(self, elements):
@@ -79,6 +81,14 @@ class Collector:
             return timestamp - value
 
 
+    def get_kernel_latency(self, elements):
+        assert(elements[0] == TCPIN or elements[0] == TCPOUT)
+        if elements[0] == TCPIN:
+            return (elements[7], elements[8], elements[9], elements[10])
+        elif elements[0] == TCPOUT:
+            return (elements[9], elements[10], elements[11], elements[12])
+
+
     def check_line(self, elements):
         if (elements[0] == TCPOUT and len(elements) == 13) \
             or (elements[0] == TCPIN and len(elements) == 11) \
@@ -87,28 +97,35 @@ class Collector:
 
         return False
 
+
     def parse_entries(self, lines):
         for line in lines:
             elements = line.strip('\n').split()
             if not self.check_line(elements):
                 continue
-            lable = elements[0]
+            label = elements[0]
             ips = self.get_ips(elements)
             key = self.get_tuple(elements)
             value = self.get_timestamp(elements)
 
-            if lable == TCPACK:
+            if label == TCPACK:
                 if ips not in self.rtt_map:
                     self.rtt_map[ips] = {}
                 self.rtt_map[ips][key] = value
                 continue
 
+            kernel_latencies = self.get_kernel_latency(elements)
+            if ips not in self.delay_map:
+                self.delay_map[ips] = {}
+            if key not in self.delay_map[ips]:
+                self.delay_map[ips][key] = {}
+
+            self.delay_map[ips][key][label] = kernel_latencies
+
             if key not in self.data_map:
                 self.data_map[key] = value
             else:
-                if ips not in self.delay_map:
-                    self.delay_map[ips] = {}
-                self.delay_map[ips][key] = self.get_delay(value, self.data_map[key]) 
+                self.delay_map[ips][key][TCPNETWORK] = self.get_delay(value, self.data_map[key]) 
                 del self.data_map[key]
 
     def get_maps(self):
