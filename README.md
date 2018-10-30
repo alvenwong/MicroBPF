@@ -160,8 +160,9 @@ To measure the network latency in VMs, uBPF timestamps SKB in eth_type_trans() a
 We launched two AWS EC2 instances, each with only one CPU core. One is running the Apache server (VM B) and the other is running the Apache benchmark (VM A). The number of concurrent connections is 10.
 ## Preliminary results
 This figure shows the network latencies and RTTs from A (Apache Benchmark) to B (Apache Server). The TCP layer latency is measured in VM B. We can see that the network latency is stable (around 1000 us) while the TCP layer latency and RTT are both greatly fluctuating and have the similar CDF. That is because that the network stack process ACKs in the TCP layer. On the sender side, the stack timestamps an SKB when it is transmitted to the IP layer. While on the receiver side, the stack has to process the SKB in the TCP layer and then return the ACK. The kernel scheduling in the TCP layer will significantly affect RTTs. <p>
-<img src="https://github.com/alvenwong/MicroBPF/blob/master/figures/B_TCP_layer.png" width="360" title="From A to B"> <p>
-  
+
+<img align="center" src="https://github.com/alvenwong/MicroBPF/blob/master/figures/B_TCP_layer.png" width="360" title="From A to B"> <p>
+
 Similarly, the next figure is the preliminary results from B to A. The TCP layer latency is measured in VM A (benchmark) and is quite small. The network latency is stable (around 550 us), while RTT is still fluctuating.
 <img src="https://github.com/alvenwong/MicroBPF/blob/master/figures/A_TCP_layer.png" width="360" title="From B to A"> <p>
 
