@@ -174,6 +174,7 @@ tcpout.py: trace the transmitted packets in the kernel. <br>
 tcpack.py: trace flow-level metrics triggered by ACKs. <br>
 tcpsock.py: just an example to probe ReadByte and WriteByte. <br>
 clock.py: Clock synchronization for uBPF. <br>
+nic/: files for communications between nodes for the network latencies. <br>  
   
 # Kernel Functions Probe
 Refer to [perf.md](https://github.com/alvenwong/kernel_trace/blob/master/perf.md).
