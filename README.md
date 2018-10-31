@@ -1,5 +1,5 @@
 # Introduce
-This project leverages eBPF ([BCC](https://github.com/iovisor/bcc)) to capture TCP metrics from the kernel for performance diagnosis in microservices architectures. It probes two levels of statistics: flows and packets.  The flow-level statistics currently have sixteen metrics, such as flight size, CWnd, sampled RTT, number of fast retransmission and timeout. The packets-level statistics are the breakdown of the end-to-end delay, including latencies in TCP layer, IP layer and kernel space.
+This project leverages eBPF ([BCC](https://github.com/iovisor/bcc)) to capture TCP metrics from the kernel for performance diagnosis in microservices architectures. It probes two levels of statistics: flows and packets. The flow-level statistics currently have sixteen metrics, such as flight size, CWnd, sampled RTT, number of fast retransmission and timeout. The packets-level statistics are the breakdown of RTT, including latencies in TCP layer, IP layer, MAC layer, and the network (from NIC to NIC).
 
 # Flow-level Statistics
 Most of the following flow-level statistics are collected from [SNAP](https://www.microsoft.com/en-us/research/wp-content/uploads/2011/01/nsdi11_dcmeasurement.pdf) (NSDI'11) and [NetPoiror](http://netdb.cis.upenn.edu/papers/netpoirot.pdf) (SIGCOMM'16). <p>
@@ -98,13 +98,83 @@ Most of the following flow-level statistics are collected from [SNAP](https://ww
 
 
 # Packet-level Statistics
-This part of statistics is the breakdown of end-to-end delay, including latencies in TCP layer, IP layer and the latency from IP layer to dirver.
+This part of statistics is the breakdown of RTT. The table shows the kernel functions we leverage to measure the latencies in different layers. <p>
+This table shows the kernel functions for probing latencies when receiving packets.<p> 
+<table>
+  <tr>
+    <th>Layer</th>
+    <th>Start Functionm </th>
+    <th>End Function </th>
+  </tr>
+  <tr>
+    <td>MAC Layer</td>
+    <td>eth_type_trans() </td>
+    <td>ip_rcv() </td>
+  </tr>
+  <tr>
+    <td>IP Layer</td>
+    <td>ip_rcv() </td>
+    <td>tcp_v4_rcv() </td>
+  </tr>
+  <tr>
+    <td>TCP Layer</td>
+    <td>tcp_v4_rcv() </td>
+    <td>skb_copy_datagram_iter() </td>
+  </tr>
+</table>
 
+This table shows the kernel functions for probing latencies when transmitting packets.<p> 
+<table>
+  <tr>
+    <th>Layer</th>
+    <th>Start Functionm </th>
+    <th>End Function </th>
+  </tr>
+  <tr>
+    <td>TCP Layer</td>
+    <td>tcp_transmit_skb() </td>
+    <td>ip_queue_xmit() </td>
+  </tr>
+  <tr>
+    <td>IP Layer</td>
+    <td>ip_queue_xmit() </td>
+    <td>dev_queue_xmit() </td>
+  </tr>
+  <tr>
+    <td>MAC Layer</td>
+    <td>dev_queue_xmit() </td>
+    <td>sch_direct_xmit() </td>
+  </tr>
+  <tr>
+    <td>QDISC Layer*</td>
+    <td>  </td>
+    <td>  </td>
+  </tr>
+</table>
+* Currently uBPF is just deployed on AWS EC2 instances. The default setting of EC2 VMs has no QDISC layer. <p>
+<br>
+To measure the network latency in VMs, uBPF timestamps SKB in eth_type_trans() and sends the metrics to a specific node to calculate the network latency. A better way to measure the network latency is to timestamp in the NIC driver, while the AWS VMs have no NIC driver. We will add this feature for physical machines soon. <p>
+
+# Preliminary evaluations
+## Testbed
+We launched two AWS EC2 instances, each with only one CPU core. One is running the Apache server (VM B) and the other is running the Apache benchmark (VM A). The number of concurrent connections is 10.
+## Preliminary results
+This figure shows the network latencies and RTTs from A (Apache Benchmark) to B (Apache Server). The TCP layer latency is measured in VM B. We can see that the network latency is stable (around 1000 us) while the TCP layer latency and RTT are both greatly fluctuating and have the similar CDF. That is because that the network stack process ACKs in the TCP layer. On the sender side, the stack timestamps an SKB when it is transmitted to the IP layer. While on the receiver side, the stack has to process the SKB in the TCP layer and then return the ACK. The kernel scheduling in the TCP layer will significantly affect RTTs. <p>
+
+<img align="center" src="https://github.com/alvenwong/MicroBPF/blob/master/figures/B_TCP_layer.png" width="450" title="From A to B"> <p>
+
+Similarly, the next figure is the preliminary results from B to A. The TCP layer latency is measured in VM A (benchmark) and is quite small. The network latency is stable (around 550 us), while RTT is still fluctuating.
+<img src="https://github.com/alvenwong/MicroBPF/blob/master/figures/A_TCP_layer.png" width="450" title="From B to A"> <p>
+
+We argue that it may provide a new prospective for performance diagnosis, system monitoring and congestion control in data centers if we split RTTs into the kernel latencies and the network latencies. <p>
+  
 # BCC files
-in_probe.py: trace the received packets in the kernel. <br>
-out_probe.py: trace the transmitted packets in the kernel. <br>
+tcpin.py: trace the received packets in the kernel. <br>
+tcpout.py: trace the transmitted packets in the kernel. <br>
 tcpack.py: trace flow-level metrics triggered by ACKs. <br>
 tcpsock.py: just an example to probe ReadByte and WriteByte. <br>
+clock.py: Clock synchronization for uBPF. <br>
+nic/: files for communications between nodes for the network latencies. <br>  
   
 # Kernel Functions Probe
 Refer to [perf.md](https://github.com/alvenwong/kernel_trace/blob/master/perf.md).
