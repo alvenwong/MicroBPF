@@ -255,7 +255,7 @@ else:
     bpf_text = bpf_text.replace('FILTER_DPORT', '')
 if args.sample:
     bpf_text = bpf_text.replace('SAMPLING',
-        'if (((pkt_tuple.seq + pkt_tuple.ack) << (32-%s) >> (32-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
+        'if (((pkt_tuple.seq + pkt_tuple.ack + skb->len) << (32-%s) >> (32-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
 else:
     bpf_text = bpf_text.replace('SAMPLING', '')
 
