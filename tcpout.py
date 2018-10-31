@@ -141,7 +141,6 @@ int trace_sch_direct_xmit(struct pt_regs *ctx, struct sk_buff *skb)
     get_pkt_tuple(&pkt_tuple, ip, tcp);
 
     SAMPLING
-    FILTER_PORT
     FILTER_DPORT
 
     u16 sport = 0;
@@ -190,7 +189,6 @@ int trace_dev_hard_start_xmit(struct pt_regs *ctx, struct sk_buff *skb)
     get_pkt_tuple(&pkt_tuple, ip, tcp);
 
     SAMPLING
-    FILTER_PORT
     FILTER_DPORT
 
     u16 sport = 0;
@@ -238,7 +236,6 @@ int trace_dev_queue_xmit(struct pt_regs *ctx, struct sk_buff *skb)
     get_pkt_tuple(&pkt_tuple, ip, tcp);
 
     SAMPLING
-    FILTER_PORT
     FILTER_DPORT
 
     struct ktime_info *tinfo;
@@ -270,7 +267,6 @@ int trace_ip_queue_xmit(struct pt_regs *ctx, struct sock *sk, struct sk_buff *sk
         pkt_tuple.ack = ntohl(ack);
 
         SAMPLING
-        FILTER_PORT
         FILTER_DPORT
 
         struct ktime_info *tinfo;
