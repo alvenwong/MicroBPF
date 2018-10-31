@@ -130,14 +130,12 @@ int trace_eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb)
     // Protocol is IP
     if (protocol == 8) 
     {
-        u64 time = bpf_ktime_get_ns();
-        SAMPLING
-
         struct iphdr *ip = (struct iphdr *)(skb->data + 14);
         struct tcphdr *tcp = (struct tcphdr *)(skb->data + 34);
         struct packet_tuple pkt_tuple = {};
         get_pkt_tuple(&pkt_tuple, ip, tcp);
         
+        SAMPLING
         FILTER_PORT
         FILTER_DPORT
         FILTER_SPORT
@@ -145,7 +143,7 @@ int trace_eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb)
         struct ktime_info *tinfo, zero={}; 
         if ((tinfo = in_timestamps.lookup_or_init(&pkt_tuple, &zero)) == NULL)
             return 0;
-        tinfo->mac_time = time;
+        tinfo->mac_time = bpf_ktime_get_ns();
     }
 
     return 0;
@@ -162,6 +160,7 @@ int trace_ip_rcv(struct pt_regs *ctx, struct sk_buff *skb)
     struct packet_tuple pkt_tuple = {};
     get_pkt_tuple(&pkt_tuple, ip, tcp);
 
+    SAMPLING
     FILTER_PORT
     FILTER_DPORT
     FILTER_SPORT
@@ -184,6 +183,7 @@ int trace_tcp_v4_rcv(struct pt_regs *ctx, struct sk_buff *skb)
     struct packet_tuple pkt_tuple = {};
     get_pkt_tuple(&pkt_tuple, ip, tcp);
 
+    SAMPLING
     FILTER_PORT
     FILTER_DPORT
     FILTER_SPORT
@@ -206,6 +206,7 @@ int trace_skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb)
     struct packet_tuple pkt_tuple = {};
     get_pkt_tuple(&pkt_tuple, ip, tcp);
 
+    SAMPLING
     FILTER_PORT
     FILTER_DPORT
     FILTER_SPORT
@@ -254,16 +255,18 @@ else:
     bpf_text = bpf_text.replace('FILTER_DPORT', '')
 if args.sample:
     bpf_text = bpf_text.replace('SAMPLING',
-        'if ((time << (64-%s) >> (64-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
+        'if (((pkt_tuple.seq + pkt_tuple.ack) << (32-%s) >> (32-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
 else:
     bpf_text = bpf_text.replace('SAMPLING', '')
+
+
 if args.output:
     if check_filename(args.output):
         output_dir = "/usr/local/bcc/"
         if not path.isdir(output_dir):
             call(["mkdir", "-p", output_dir])
         output_file = output_dir + args.output
-        sys.stdout = open(output_file, "w+", buffering=0)
+        sys.stdout = open(output_file, "w+", buffering=1)
     else:
         print("The output filename is invalid. Exit...")
         exit()
