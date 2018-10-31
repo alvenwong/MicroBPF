@@ -118,8 +118,6 @@ int trace_tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb)
         return 0;
 
     u32 pid = bpf_get_current_pid_tgid();
-    u64 time = bpf_ktime_get_ns();
-    SAMPLING
     char state = sk->__sk_common.skc_state;
     u32 ack = 0, seq = 0, snd_cwnd = 0;
     u16 sport = 0, dport = 0;
@@ -132,9 +130,11 @@ int trace_tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb)
     sport = ntohs(sport);
     dport = ntohs(dport);
     seq = tcp->seq;
+    seq = ntohl(seq);
     ack = tcp->ack_seq;
+    ack = ntohl(ack);
 
-
+    SAMPLING
     FILTER_PORT
     FILTER_DPORT
     FILTER_SPORT
@@ -148,8 +148,8 @@ int trace_tcp_ack(struct pt_regs *ctx, struct sock *sk, struct sk_buff *skb)
     data4.daddr = ip->daddr;
     data4.dport = dport;
     data4.sport = sport;
-    data4.seq = ntohl(seq);
-    data4.ack = ntohl(ack);
+    data4.seq = seq;
+    data4.ack = ack;
     data4.state = state;
     data4.tcpflags = tcpflags;
     data4.snd_cwnd = tp->snd_cwnd;
@@ -228,7 +228,7 @@ else:
     bpf_text = bpf_text.replace('FILTER_DPORT', '')
 if args.sample:
     bpf_text = bpf_text.replace('SAMPLING',
-        'if ((time << (64-%s) >> (64-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
+        'if (((seq+ack) << (32-%s) >> (32-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
 else:
     bpf_text = bpf_text.replace('SAMPLING', '')
 if args.output:
@@ -237,7 +237,7 @@ if args.output:
         if not path.isdir(output_dir):
             call(["mkdir", "-p", output_dir])
         output_file = output_dir + args.output
-        sys.stdout = open(output_file, "w+", buffering=0)
+        sys.stdout = open(output_file, "w+", buffering=1)
     else:
         print("The output filename is invalid. Exit...")
         exit()

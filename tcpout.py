@@ -140,6 +140,8 @@ int trace_sch_direct_xmit(struct pt_regs *ctx, struct sk_buff *skb)
     struct packet_tuple pkt_tuple = {};
     get_pkt_tuple(&pkt_tuple, ip, tcp);
 
+    SAMPLING
+    FILTER_PORT
     FILTER_DPORT
 
     u16 sport = 0;
@@ -187,6 +189,8 @@ int trace_dev_hard_start_xmit(struct pt_regs *ctx, struct sk_buff *skb)
     struct packet_tuple pkt_tuple = {};
     get_pkt_tuple(&pkt_tuple, ip, tcp);
 
+    SAMPLING
+    FILTER_PORT
     FILTER_DPORT
 
     u16 sport = 0;
@@ -233,6 +237,8 @@ int trace_dev_queue_xmit(struct pt_regs *ctx, struct sk_buff *skb)
     struct packet_tuple pkt_tuple = {};
     get_pkt_tuple(&pkt_tuple, ip, tcp);
 
+    SAMPLING
+    FILTER_PORT
     FILTER_DPORT
 
     struct ktime_info *tinfo;
@@ -263,6 +269,8 @@ int trace_ip_queue_xmit(struct pt_regs *ctx, struct sock *sk, struct sk_buff *sk
         pkt_tuple.seq = ntohl(seq);
         pkt_tuple.ack = ntohl(ack);
 
+        SAMPLING
+        FILTER_PORT
         FILTER_DPORT
 
         struct ktime_info *tinfo;
@@ -279,8 +287,6 @@ int trace_tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buff 
     if (skb == NULL)
         return 0;
 
-    u64 time = bpf_ktime_get_ns();
-    SAMPLING
 
     u16 family = sk->__sk_common.skc_family;
     if (family == AF_INET) {
@@ -299,6 +305,7 @@ int trace_tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buff 
         pkt_tuple.seq = tcb->seq; 
         pkt_tuple.ack = rcv_nxt;
 
+        SAMPLING
         FILTER_PORT
         FILTER_DPORT
         FILTER_SPORT
@@ -335,7 +342,7 @@ else:
     bpf_text = bpf_text.replace('FILTER_DPORT', '')
 if args.sample:
     bpf_text = bpf_text.replace('SAMPLING',
-        'if ((time << (64-%s) >> (64-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
+        'if (((pkt_tuple.seq + pkt_tuple.ack) << (32-%s) >> (32-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
 else:
     bpf_text = bpf_text.replace('SAMPLING', '')
 if args.output:
@@ -344,7 +351,7 @@ if args.output:
         if not path.isdir(output_dir):
             call(["mkdir", "-p", output_dir])
         output_file = output_dir + args.output
-        sys.stdout = open(output_file, "w+", buffering=0)
+        sys.stdout = open(output_file, "w+", buffering=1)
     else:
         print("The output filename is invalid. Exit...")
         exit()
