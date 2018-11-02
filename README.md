@@ -105,7 +105,7 @@ This table shows the kernel functions for probing latencies when receiving packe
 <table>
   <tr>
     <th>Layer</th>
-    <th>Start Functionm </th>
+    <th>Start Function </th>
     <th>End Function </th>
   </tr>
   <tr>
@@ -130,7 +130,7 @@ This table shows the kernel functions for probing latencies when transmitting pa
 <table>
   <tr>
     <th>Layer</th>
-    <th>Start Functionm </th>
+    <th>Start Function </th>
     <th>End Function </th>
   </tr>
   <tr>
