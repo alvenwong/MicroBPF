@@ -1,5 +1,5 @@
 # Introduce
-This project leverages eBPF ([BCC](https://github.com/iovisor/bcc)) to capture TCP metrics from the kernel for performance diagnosis in microservices architectures. It probes two levels of statistics: flows and packets. The flow-level statistics currently have sixteen metrics, such as flight size, CWnd, sampled RTT, number of fast retransmission and timeout. The packets-level statistics are the breakdown of RTT, including latencies in TCP layer, IP layer, MAC layer, and the network (from NIC to NIC).
+This project leverages eBPF ([BCC](https://github.com/iovisor/bcc)) to capture TCP metrics from the kernel for performance diagnosis in microservices architectures. It probes two levels of statistics: flows and packets. The flow-level statistics currently have sixteen metrics, such as flight size, CWnd, sampled RTT, number of fast retransmission and timeout. The packets-level statistics are the breakdown of RTT, including latencies in TCP layer, IP layer, MAC layer, and the network (from NIC to NIC). It also measure the application layer latencies.
 
 # Flow-level Statistics
 Most of the following flow-level statistics are collected from [SNAP](https://www.microsoft.com/en-us/research/wp-content/uploads/2011/01/nsdi11_dcmeasurement.pdf) (NSDI'11) and [NetPoiror](http://netdb.cis.upenn.edu/papers/netpoirot.pdf) (SIGCOMM'16). <p>
@@ -99,6 +99,8 @@ Most of the following flow-level statistics are collected from [SNAP](https://ww
 
 # Packet-level Statistics
 This part of statistics is the breakdown of RTT. The table shows the kernel functions we leverage to measure the latencies in different layers. <p>
+  
+## Receive packets
 This table shows the kernel functions for probing latencies when receiving packets.<p> 
 <table>
   <tr>
@@ -123,6 +125,7 @@ This table shows the kernel functions for probing latencies when receiving packe
   </tr>
 </table>
 
+## Transmit packets
 This table shows the kernel functions for probing latencies when transmitting packets.<p> 
 <table>
   <tr>
@@ -153,7 +156,31 @@ This table shows the kernel functions for probing latencies when transmitting pa
 </table>
 * Currently uBPF is just deployed on AWS EC2 instances. The default setting of EC2 VMs has no QDISC layer. <p>
 <br>
+  
+## The network latency
 To measure the network latency in VMs, uBPF timestamps SKB in eth_type_trans() and sends the metrics to a specific node to calculate the network latency. A better way to measure the network latency is to timestamp in the NIC driver, while the AWS VMs have no NIC driver. We will add this feature for physical machines soon. <p>
+
+## The application layer latency
+
+This table shows the kernel functions for measuring the application layer latencies.<p> 
+  
+<table>
+  <tr>
+    <th>Side</th>
+    <th>Ideal trace point</th>
+    <th>Practical trace point</th>
+  </tr>
+  <tr>
+    <td>Receive</td>
+    <td>recv()</td>
+    <td>skb_copy_datagram_iter()</td>
+  </tr>
+  <tr>
+    <td>Transmit</td>
+    <td>send()</td>
+    <td>tcp_transmit_skb()</td>
+  </tr>
+</table>
 
 # Preliminary evaluations
 ## Testbed
@@ -172,9 +199,10 @@ We argue that it may provide a new prospective for performance diagnosis, system
 tcpin.py: trace the received packets in the kernel. <br>
 tcpout.py: trace the transmitted packets in the kernel. <br>
 tcpack.py: trace flow-level metrics triggered by ACKs. <br>
+app.py: measure the application layer latency. <br>
 tcpsock.py: just an example to probe ReadByte and WriteByte. <br>
 clock.py: Clock synchronization for uBPF. <br>
-nic/: files for communications between nodes for the network latencies. <br>  
+nic/: files for measuring the network latencies. <br>  
   
 # Kernel Functions Probe
 Refer to [perf.md](https://github.com/alvenwong/kernel_trace/blob/master/perf.md).
