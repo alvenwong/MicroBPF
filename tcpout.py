@@ -130,54 +130,6 @@ static void get_pkt_tuple(struct packet_tuple *pkt_tuple, struct iphdr *ip, stru
 } 
 
 
-int trace_sch_direct_xmit(struct pt_regs *ctx, struct sk_buff *skb)
-{
-    if (skb == NULL)
-        return 0;
-
-    struct iphdr *ip = skb_to_iphdr(skb);
-    struct tcphdr *tcp = skb_to_tcphdr(skb);
-    struct packet_tuple pkt_tuple = {};
-    get_pkt_tuple(&pkt_tuple, ip, tcp);
-
-    SAMPLING
-    FILTER_DPORT
-
-    u16 sport = 0;
-    sport = tcp->source;
-
-    struct flow_tuple *ftuple;
-    if((ftuple = flows.lookup(&pkt_tuple)) == NULL)
-        return 0;
- 
-    struct ktime_info *tinfo;
-    if ((tinfo = out_timestamps.lookup(&pkt_tuple)) == NULL)
-        return 0;
-
-    tinfo->qdisc_time = bpf_ktime_get_ns();
-    struct data_t data = {};
-    data.total_time = tinfo->qdisc_time - tinfo->tcp_time;
-    data.qdisc_timestamp = tinfo->qdisc_time;
-    data.qdisc_time = tinfo->qdisc_time - tinfo->mac_time;
-    data.ip_time = tinfo->mac_time - tinfo->ip_time;
-    data.tcp_time = tinfo->ip_time - tinfo->tcp_time;
-    data.saddr = ftuple->saddr;
-    data.daddr = pkt_tuple.daddr;
-    data.nat_saddr = ip->saddr;
-    data.nat_sport = ntohs(sport);
-    data.sport = ftuple->sport;
-    data.dport = pkt_tuple.dport;
-    data.seq = pkt_tuple.seq;
-    data.ack = pkt_tuple.ack;
-    
-    flows.delete(&pkt_tuple);
-    out_timestamps.delete(&pkt_tuple);
-    timestamp_events.perf_submit(ctx, &data, sizeof(data));
-
-    return 0;
-}
-
-
 int trace_dev_hard_start_xmit(struct pt_regs *ctx, struct sk_buff *skb)
 {
     if (skb == NULL)
@@ -391,7 +343,7 @@ def print_event(cpu, data, size):
 # initialize BPF
 b = BPF(text=bpf_text)
 trace_prefix = "trace_"
-kprobe_functions_list = ["tcp_transmit_skb", "ip_queue_xmit", "dev_queue_xmit", "sch_direct_xmit"]
+kprobe_functions_list = ["tcp_transmit_skb", "ip_queue_xmit", "dev_queue_xmit", "dev_hard_start_xmit"]
 for i in range(len(kprobe_functions_list)):
     function = kprobe_functions_list[i]
     trace_function = trace_prefix + function
