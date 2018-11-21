@@ -98,7 +98,7 @@ Most of the following flow-level statistics are collected from [SNAP](https://ww
 
 
 # Packet-level Statistics
-This part of statistics is the breakdown of RTT. The table shows the kernel functions we leverage to measure the latencies in different layers. <p>
+The table shows the kernel functions we leverage to measure the latencies in different layers. <p>
   
 ## Receive packets
 This table shows the kernel functions for probing latencies when receiving packets.<p> 
@@ -146,7 +146,7 @@ This table shows the kernel functions for probing latencies when transmitting pa
   <tr>
     <td>MAC Layer</td>
     <td>dev_queue_xmit() </td>
-    <td>sch_direct_xmit() </td>
+    <td>dev_hard_start_xmit() </td>
   </tr>
   <tr>
     <td>QDISC Layer*</td>
@@ -154,14 +154,13 @@ This table shows the kernel functions for probing latencies when transmitting pa
     <td>  </td>
   </tr>
 </table>
-* Currently uBPF is just deployed on AWS EC2 instances. The default setting of EC2 VMs has no QDISC layer. <p>
+* Currently, uBPF is just deployed on AWS EC2 instances. The default setting of EC2 VMs has no QDISC layer. <p>
 <br>
   
 ## The network latency
 To measure the network latency in VMs, uBPF timestamps SKB in eth_type_trans() and sends the metrics to a specific node to calculate the network latency. A better way to measure the network latency is to timestamp in the NIC driver, while the AWS VMs have no NIC driver. We will add this feature for physical machines soon. <p>
 
 ## The application layer latency
-
 This table shows the kernel functions for measuring the application layer latencies.<p> 
   
 <table>
