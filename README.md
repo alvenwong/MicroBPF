@@ -192,7 +192,7 @@ This table shows the kernel functions for probing latencies when transmitting pa
 ## The network latency
 To measure the network latency in VMs, uBPF timestamps SKB in eth_type_trans()/dev_hard_start_xmit() and sends the metrics to a measurement node to calculate the network latency. A better way to measure the network latency is to timestamp in the physical NIC driver, while there is no physical NIC driver in the AWS VMs. We will add this feature for physical machines soon. <p>
 The figure shows the system design of MicroBPF to measure the network latencies. <p>
-<img align="center" src="https://github.com/alvenwong/MicroBPF/blob/master/figures/Network_latencies_design.png" width="600"> <p>
+<img align="center" src="https://github.com/alvenwong/MicroBPF/blob/master/figures/Network_latencies_design.png" width="500"> <p>
   
 ## The application layer latency
 This table shows the kernel functions for measuring the application layer latencies.<p> 
