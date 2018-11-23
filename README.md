@@ -98,9 +98,41 @@ Most of the following flow-level statistics are collected from [SNAP](https://ww
 
 
 # Packet-level Statistics
-This part of statistics is the breakdown of RTT. The table shows the kernel functions we leverage to measure the latencies in different layers. <p>
+
+## Overview
+MicroBPF aims to measure the latencies in different layers. This figure shows the overview of MicroBPF. <p>
+<img align="center" src="https://github.com/alvenwong/MicroBPF/blob/master/figures/uBPF_overview.png" width="600"> <p>
   
-## Receive packets
+Given a Request R generated from the sender. It will traverse the networking stack and depart the NIC of the sender. After going through the network, it arrives at the NIC of the receiver and traverse its networking stack. Then the application will process this request and return the Response R back to the sender. <p>
+The table displays the latencies measured by MicroBPF in different layers. <p>
+<table>
+  <tr>
+    <th>Layer</th>
+    <th>Latencies</th>
+  </tr>
+  <tr>
+    <td>TCP</td>
+    <td>L_TCP_1, L_TCP_2, L_TCP_3, L_TCP_4</td>
+  <tr>
+  <tr>
+    <td>IP</td>
+    <td>L_IP_1, L_IP_2, L_IP_3, L_IP_4</td>
+  <tr>
+  <tr>
+    <td>MAC</td>
+    <td>L_NIC_1, L_NIC_2, L_NIC_3, L_NIC_4</td>
+  <tr>
+  <tr>
+    <td>Network</td>
+    <td>L_NET_1, L_NET_2</td>
+  <tr>
+  <tr>
+    <td>APP</td>
+    <td>L_APP_1, L_APP_2</td>
+  <tr>
+</table>
+
+## Receiving packets
 This table shows the kernel functions for probing latencies when receiving packets.<p> 
 <table>
   <tr>
@@ -125,7 +157,7 @@ This table shows the kernel functions for probing latencies when receiving packe
   </tr>
 </table>
 
-## Transmit packets
+## Transmitting packets
 This table shows the kernel functions for probing latencies when transmitting packets.<p> 
 <table>
   <tr>
@@ -146,7 +178,7 @@ This table shows the kernel functions for probing latencies when transmitting pa
   <tr>
     <td>MAC Layer</td>
     <td>dev_queue_xmit() </td>
-    <td>sch_direct_xmit() </td>
+    <td>dev_hard_start_xmit() </td>
   </tr>
   <tr>
     <td>QDISC Layer*</td>
@@ -154,14 +186,15 @@ This table shows the kernel functions for probing latencies when transmitting pa
     <td>  </td>
   </tr>
 </table>
-* Currently uBPF is just deployed on AWS EC2 instances. The default setting of EC2 VMs has no QDISC layer. <p>
+* Currently, uBPF is just deployed on AWS EC2 instances. The default setting of EC2 VMs has no QDISC layer. <p>
 <br>
   
 ## The network latency
-To measure the network latency in VMs, uBPF timestamps SKB in eth_type_trans() and sends the metrics to a specific node to calculate the network latency. A better way to measure the network latency is to timestamp in the NIC driver, while the AWS VMs have no NIC driver. We will add this feature for physical machines soon. <p>
-
+To measure the network latency in VMs, uBPF timestamps SKB in eth_type_trans()/dev_hard_start_xmit() and sends the metrics to a measurement node to calculate the network latency. A better way to measure the network latency is to timestamp in the physical NIC driver, while there is no physical NIC driver in the AWS VMs. We will add this feature for physical machines soon. <p>
+The figure shows the system design of MicroBPF to measure the network latencies. <p>
+<img align="center" src="https://github.com/alvenwong/MicroBPF/blob/master/figures/Network_latencies_design.png" width="500"> <p>
+  
 ## The application layer latency
-
 This table shows the kernel functions for measuring the application layer latencies.<p> 
   
 <table>
