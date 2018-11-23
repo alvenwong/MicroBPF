@@ -3,7 +3,7 @@
 from __future__ import print_function
 from bcc import BPF
 from time import strftime
-from socket import inet_ntop, AF_INET, AF_INET6
+from socket import inet_ntop, AF_INET, AF_INET6, gethostname, gethostbyname
 from struct import pack
 import ctypes as ct
 from bcc import tcp
@@ -323,13 +323,14 @@ class Data_t(ct.Structure):
     ]
 
 tm = Time()
+ip = gethostbyname(gethostname())
 
 # process event
 def print_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data_t)).contents
     print("1 %-20s -> %-20s -> %-20s %-12s %-12s %-20s %-10s %-10s %-10s %-10s" % (
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.saddr)), event.sport),
-        "%s:%d" % (inet_ntop(AF_INET, pack('I', event.nat_saddr)), event.nat_sport),
+        "%s:%d" % (ip, event.nat_sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
         "%d" % (event.seq),
         "%d" % (event.ack),
