@@ -101,36 +101,16 @@ Most of the following flow-level statistics are collected from [SNAP](https://ww
 
 ## Overview
 MicroBPF aims to measure the latencies in different layers. This figure shows the overview of MicroBPF. <p>
-<img align="center" src="https://github.com/alvenwong/MicroBPF/blob/master/figures/uBPF_overview.png" width="600"> <p>
-  
+<img align="center" src="https://github.com/alvenwong/MicroBPF/blob/master/figures/architecture.png" width="600"> <p>
+
 Given a Request R generated from the sender. It will traverse the networking stack and depart the NIC of the sender. After going through the network, it arrives at the NIC of the receiver and traverse its networking stack. Then the application will process this request and return the Response R back to the sender. <p>
-The table displays the latencies measured by MicroBPF in different layers. <p>
-<table>
-  <tr>
-    <th>Layer</th>
-    <th>Latencies</th>
-  </tr>
-  <tr>
-    <td>TCP</td>
-    <td>L_TCP_1, L_TCP_2, L_TCP_3, L_TCP_4</td>
-  <tr>
-  <tr>
-    <td>IP</td>
-    <td>L_IP_1, L_IP_2, L_IP_3, L_IP_4</td>
-  <tr>
-  <tr>
-    <td>MAC</td>
-    <td>L_NIC_1, L_NIC_2, L_NIC_3, L_NIC_4</td>
-  <tr>
-  <tr>
-    <td>Network</td>
-    <td>L_NET_1, L_NET_2</td>
-  <tr>
-  <tr>
-    <td>APP</td>
-    <td>L_APP_1, L_APP_2</td>
-  <tr>
-</table>
+This figures shows the data flow of a packet generating from a host to microservices. <p>
+<img align="center" src="https://github.com/alvenwong/MicroBPF/blob/master/figures/data_flow.png" width="600"> <p>
+
+
+This figures shows the main kernel function invocations and buffers when receiving and transmitting packets.
+<img align="center" src="https://github.com/alvenwong/MicroBPF/blob/master/figures/packet_process.png" width="600"> <p>
+
 
 ## Receiving packets
 This table shows the kernel functions for probing latencies when receiving packets.<p> 
@@ -167,7 +147,7 @@ This table shows the kernel functions for probing latencies when transmitting pa
   </tr>
   <tr>
     <td>TCP Layer</td>
-    <td>tcp_transmit_skb() </td>
+    <td>tcp_write_queue_tail() </td>
     <td>ip_queue_xmit() </td>
   </tr>
   <tr>
@@ -191,8 +171,6 @@ This table shows the kernel functions for probing latencies when transmitting pa
   
 ## The network latency
 To measure the network latency in VMs, uBPF timestamps SKB in eth_type_trans()/dev_hard_start_xmit() and sends the metrics to a measurement node to calculate the network latency. A better way to measure the network latency is to timestamp in the physical NIC driver, while there is no physical NIC driver in the AWS VMs. We will add this feature for physical machines soon. <p>
-The figure shows the system design of MicroBPF to measure the network latencies. <p>
-<img align="center" src="https://github.com/alvenwong/MicroBPF/blob/master/figures/Network_latencies_design.png" width="500"> <p>
   
 ## The application layer latency
 This table shows the kernel functions for measuring the application layer latencies.<p> 
