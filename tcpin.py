@@ -123,6 +123,28 @@ static void get_pkt_tuple(struct packet_tuple *pkt_tuple, struct iphdr *ip, stru
 } 
 
 
+static inline int machdr_len(struct sk_buff *skb)
+{
+    return skb->mac_len;
+}
+
+
+static inline int iphdr_len(struct iphdr *ip)
+{
+    // BCC does not support bitfield
+    // get iphdr->ihl if __BIG_ENDIAN_BITFIELD
+    return ((*(u8 *)ip) & 0x0F) << 2;
+}
+
+
+static inline int tcphdr_len(struct tcphdr *tcp)
+{
+    // BCC does not support bitfield
+    // get tcphdr->doff if __BIG_ENDIAN_BITFIELD
+    return (*((u8 *)tcp + 12)) >> 4 << 2;
+}
+
+
 int trace_eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb)
 {
     const struct ethhdr* eth = (struct ethhdr*) skb->data;
@@ -130,8 +152,8 @@ int trace_eth_type_trans(struct pt_regs *ctx, struct sk_buff *skb)
     // Protocol is IP
     if (protocol == 8) 
     {
-        struct iphdr *ip = (struct iphdr *)(skb->data + 14);
-        struct tcphdr *tcp = (struct tcphdr *)(skb->data + 34);
+        struct iphdr *ip = (struct iphdr *)(skb->data + machdr_len(skb));
+        struct tcphdr *tcp = (struct tcphdr *)((u8 *)ip + iphdr_len(ip));
         struct packet_tuple pkt_tuple = {};
         get_pkt_tuple(&pkt_tuple, ip, tcp);
         
@@ -216,6 +238,7 @@ int trace_skb_copy_datagram_iter(struct pt_regs *ctx, struct sk_buff *skb)
         return 0;
     tinfo->app_time = bpf_ktime_get_ns();
     struct data_t data = {};
+
     data.total_time = tinfo->app_time - tinfo->mac_time;
     data.mac_timestamp = tinfo->mac_time;
     data.mac_time = tinfo->ip_time - tinfo->mac_time;
@@ -255,7 +278,7 @@ else:
     bpf_text = bpf_text.replace('FILTER_DPORT', '')
 if args.sample:
     bpf_text = bpf_text.replace('SAMPLING',
-        'if (((pkt_tuple.seq + pkt_tuple.ack + skb->len) << (32-%s) >> (32-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
+        'if (((pkt_tuple.seq + pkt_tuple.ack) << (32-%s) >> (32-%s)) != ((0x01 << %s) - 1)) { return 0;}' % (args.sample, args.sample, args.sample))
 else:
     bpf_text = bpf_text.replace('SAMPLING', '')
 

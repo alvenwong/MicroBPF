@@ -474,13 +474,13 @@ ip = gethostbyname(gethostname())
 # process event
 def print_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data_t)).contents
-    print("5 %-20s -> %-20s %-12s %-12s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s" % (
+    print("6 %-20s -> %-20s %-12s %-12s %-20s %-20s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s" % (
         "%s:%d" % (ip, event.sport),
         "%s:%d" % (inet_ntop(AF_INET, pack('I', event.daddr)), event.dport),
         "%d" % (event.seq),
         "%d" % (event.ack),
-        #"%f" % (tm.get_abs_time(event.latencies.mac_in_timestamp*1e-9)),
-        #"%f" % (tm.get_abs_time(event.latencies.mac_out_timestamp*1e-9)),
+        "%f" % (tm.get_abs_time(event.latencies.mac_in_timestamp*1e-9)),
+        "%f" % (tm.get_abs_time(event.latencies.mac_out_timestamp*1e-9)),
         "%d" % (event.latencies.total/1000),
         "%d" % (event.latencies.mac_in/1000),
         "%d" % (event.latencies.ip_in/1000),
@@ -510,7 +510,7 @@ for i in range(len(kprobe_functions_list)):
 
 # header
 if not args.output:
-    print("5 %-20s -> %-20s %-12s %-12s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s" % ("SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TOTAL", "MAC_IN", "IP_IN", "TCP_IN", "APP", "TCP_OUT", "IP_OUT", "MAC_OUT"))
+    print("5 %-20s -> %-20s %-12s %-12s %-20s %-20s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s" % ("SADDR:SPORT", "DADDR:DPORT", "SEQ", "ACK", "TIME_IN", "TIME_OUT", "TOTAL", "MAC_IN", "IP_IN", "TCP_IN", "APP", "TCP_OUT", "IP_OUT", "MAC_OUT"))
 
 # read events
 b["timestamp_events"].open_perf_buffer(print_event)

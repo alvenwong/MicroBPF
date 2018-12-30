@@ -27,7 +27,7 @@ parser = argparse.ArgumentParser(
     description="Measure the latency in the application layer",
     formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog=examples)
-parser.add_argument("-p", "--port", 
+parser.add_argument("-p", "--port", nargs='?', const="80",
     help="TCP port")
 parser.add_argument("-s", "--sample",
     help="Trace sampling")
@@ -134,7 +134,6 @@ int trace_tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buff 
     if (skb == NULL)
         return 0;
 
-
     u16 family = sk->__sk_common.skc_family;
     if (family == AF_INET) {
         struct pair_tuple ptuple = {};
@@ -159,10 +158,10 @@ int trace_tcp_transmit_skb(struct pt_regs *ctx, struct sock *sk, struct sk_buff 
         tinfo->send_time = bpf_ktime_get_ns();
         struct data_t data = {};
         data.app_time = tinfo->send_time - tinfo->rcv_time;
-        data.saddr = ptuple.saddr;
-        data.daddr = ptuple.daddr;
-        data.sport = ptuple.sport;
-        data.dport = ptuple.dport;
+        data.daddr = ptuple.saddr;
+        data.saddr = ptuple.daddr;
+        data.dport = ptuple.sport;
+        data.sport = ptuple.dport;
         data.seq = ptuple.seq;
         data.ack = ptuple.ack;
   
